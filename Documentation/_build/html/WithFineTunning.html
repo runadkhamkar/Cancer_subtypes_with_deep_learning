@@ -1,0 +1,258 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>WithFineTunning module &#8212; Deep learning based methods for cancersubtype discovery 1 documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="WithoutFineTunning module" href="WithoutFineTunning.html" />
+    <link rel="prev" title="SelectBest_Classification module" href="SelectBest_Classification.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="module-WithFineTunning">
+<span id="withfinetunning-module"></span><h1>WithFineTunning module<a class="headerlink" href="#module-WithFineTunning" title="Permalink to this headline">¶</a></h1>
+<dl class="function">
+<dt id="WithFineTunning.accuracy_score">
+<code class="descclassname">WithFineTunning.</code><code class="descname">accuracy_score</code><span class="sig-paren">(</span><em>y_test</em>, <em>y_pred</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/WithFineTunning.html#accuracy_score"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#WithFineTunning.accuracy_score" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function is used to calculate Accuracy,F1 Score Weighted,Recall Score Weighted,Precision Weighted,AUC Score ,MCC Score,Kappa,Log Loss.</p>
+<p>y_test :(object) 
+This data has category labels for your test data, these labels will be used to test the accuracy between actual and predicted categories.
+y_test is come in after the finetune model.</p>
+<p>y_pred : (object)
+This data has category labels for your predict data, these labels will be used to predict the accuracy between actual and predicted categories.</p>
+<p>It doesn’t anything return , It only print the value of  Accuracy,F1 Score Weighted,Recall Score Weighted,Precision Weighted,AUC Score ,MCC Score,Kappa,Log Loss.</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="WithFineTunning.classifiers">
+<code class="descclassname">WithFineTunning.</code><code class="descname">classifiers</code><em class="property"> = [KNeighborsClassifier(n_neighbors=3), DecisionTreeClassifier(random_state=75), RandomForestClassifier(criterion='entropy', random_state=75), XGBClassifier(base_score=0.5, booster='gbtree', colsample_bylevel=1,               colsample_bynode=1, colsample_bytree=1, gamma=0, gpu_id=-1,               importance_type='gain', interaction_constraints='',               learning_rate=0.001, max_delta_step=0, max_depth=4,               min_child_weight=1, missing=nan, monotone_constraints='()',               n_estimators=100, n_jobs=1, nthread=1, num_parallel_tree=1,               objective='multi:softprob', random_state=0, reg_alpha=0,               reg_lambda=1, scale_pos_weight=None, subsample=0.65,               tree_method='exact', validate_parameters=1, verbosity=None), GradientBoostingClassifier(random_state=75), GaussianNB(), LinearDiscriminantAnalysis(), QuadraticDiscriminantAnalysis(), SVC(probability=True, random_state=75), LogisticRegression(C=0.1, multi_class='multinomial', random_state=75,                    solver='sag'), MLPClassifier(activation='tanh', hidden_layer_sizes=500, random_state=75,               verbose=True), VotingClassifier(estimators=[('MLP',                               MLPClassifier(activation='tanh',                                             hidden_layer_sizes=500,                                             random_state=75, verbose=True)),                              ('LDA', LinearDiscriminantAnalysis()),                              ('LR',                               LogisticRegression(C=0.1,                                                  multi_class='multinomial',                                                  random_state=75,                                                  solver='sag'))],                  voting='soft')]</em><a class="headerlink" href="#WithFineTunning.classifiers" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="docutils">
+<dt>classifiers = [</dt>
+<dd>KNeighborsClassifier(3),
+DecisionTreeClassifier(random_state=seed),
+RandomForestClassifier(criterion=’entropy’, n_estimators=100, random_state=seed),
+XGBClassifier(learning_rate=0.001,max_depth=4,n_estimators=100, nthread=1, subsample=0.65),
+GradientBoostingClassifier(random_state=seed),
+GaussianNB(),
+LinearDiscriminantAnalysis(),
+QuadraticDiscriminantAnalysis(),
+SVC(kernel=’rbf’, probability=True, random_state=seed),
+LogisticRegression(C=0.1, multi_class= ‘multinomial’, solver=’sag’, random_state=seed),
+MLPClassifier(hidden_layer_sizes=(500), random_state=seed, verbose=True, activation=’tanh’, solver=’adam’, alpha=0.0001, batch_size=’auto’),
+VotingClassifier(estimators=[(‘MLP’, MLPClassifier(hidden_layer_sizes=(500), random_state=seed, verbose=True, activation=’tanh’, solver=’adam’, alpha=0.0001, batch_size=’auto’)),
+(‘LDA’, LinearDiscriminantAnalysis()),
+(‘LR’, LogisticRegression(C=0.1, multi_class= ‘multinomial’, solver=’sag’, random_state=seed))], voting=’soft’)
+]</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="WithFineTunning.gaussian_mix">
+<code class="descclassname">WithFineTunning.</code><code class="descname">gaussian_mix</code><span class="sig-paren">(</span><em>x</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/WithFineTunning.html#gaussian_mix"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#WithFineTunning.gaussian_mix" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function is used to normalize. Mainly it creating a random sample from Gaussian distribution than normalize.</p>
+<dl class="docutils">
+<dt>x <span class="classifier-delimiter">:</span> <span class="classifier">(int)</span></dt>
+<dd>If ‘x’ is value which you want to normalize.</dd>
+</dl>
+<dl class="docutils">
+<dt>TYPE:(int)</dt>
+<dd>It has return the normalize value.</dd>
+</dl>
+</dd></dl>
+
+<dl class="data">
+<dt id="WithFineTunning.model">
+<code class="descclassname">WithFineTunning.</code><code class="descname">model</code><em class="property"> = &lt;tensorflow.python.keras.engine.functional.Functional object&gt;</em><a class="headerlink" href="#WithFineTunning.model" title="Permalink to this definition">¶</a></dt>
+<dd><p>FUNCTION :load_model(path1)
+It is load the model comes in  fine_tune</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="WithFineTunning.qt">
+<code class="descclassname">WithFineTunning.</code><code class="descname">qt</code><em class="property"> = QuantileTransformer(n_quantiles=10, random_state=75)</em><a class="headerlink" href="#WithFineTunning.qt" title="Permalink to this definition">¶</a></dt>
+<dd><p>INBUILT FUNCTION : QuantileTransformer(n_quantiles=10, random_state=seed)</p>
+<p>Extended description of function</p>
+<p>This method transforms the features to follow a uniform or a normal distribution.
+For a given feature, this transformation tends to spread out the most frequent values.</p>
+<p>n_quantiles : (int)
+The actual number of quantiles used to discretize the cumulative distribution function.</p>
+<p>random_state : (int)
+It has determines random number generation for subsampling and smothing noise.</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="WithFineTunning.skf">
+<code class="descclassname">WithFineTunning.</code><code class="descname">skf</code><em class="property"> = StratifiedKFold(n_splits=2, random_state=75, shuffle=True)</em><a class="headerlink" href="#WithFineTunning.skf" title="Permalink to this definition">¶</a></dt>
+<dd><p>INBUILT FUNCTION : StratifiedKFold(n_splits=5, shuffle=True, random_state=seed)</p>
+<p>Extended description of function</p>
+<p>It is provides train/test indices to split data in train/test sets.This cross-validation object is a variation of KFold that returns stratified folds. The folds are made by preserving the percentage of samples for each class.</p>
+<p>n_splits : (int)
+It is number of folds. Must be at least 2.</p>
+<p>random_state : (int)
+If the random state affects the ordering of the indices.</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="WithFineTunning.sm">
+<code class="descclassname">WithFineTunning.</code><code class="descname">sm</code><em class="property"> = SMOTE(random_state=75)</em><a class="headerlink" href="#WithFineTunning.sm" title="Permalink to this definition">¶</a></dt>
+<dd><p>INBUILT FUNCTION : SMOTE(sampling_strategy=’auto’, random_state=seed)</p>
+<p>Extended description of function</p>
+<p>SMOTE is one of the most commonly used oversampling methods to solve the imbalance problem.It aims to balance class distribution by randomly increasing minority.</p>
+<p>sampling_strategy : (float)
+It has oversample the minority class to have any percent of number.
+I have taken sampling_strategy auto , so if any percent is taken.</p>
+<p>random_state : (int)
+If the random state affects the ordering of the indices.</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="WithFineTunning.x_test">
+<code class="descclassname">WithFineTunning.</code><code class="descname">x_test</code><em class="property"> = array([[-5.8530254 ,  2.0324504 , -5.2425656 , ..., -5.556366  ,          1.7694122 ,  5.174152  ],        [-5.0462728 ,  2.7659965 , -5.7645745 , ..., -4.5188975 ,         -1.7002248 ,  7.10828   ],        [-6.0184946 ,  1.8757218 , -6.4254794 , ..., -4.2969627 ,         -0.7157525 ,  3.0921724 ],        ...,        [-4.1064973 ,  2.7618778 , -0.75836533, ...,  0.38076395,          1.284259  , 10.136854  ],        [-2.0026722 ,  1.5407486 , -4.871442  , ..., -2.6210766 ,         -4.6544266 ,  7.6901164 ],        [-4.4435315 ,  2.1418548 , -5.152377  , ..., -5.9685564 ,         -0.94425476,  7.8433785 ]], dtype=float32)</em><a class="headerlink" href="#WithFineTunning.x_test" title="Permalink to this definition">¶</a></dt>
+<dd><p>FUNCTION :predict(x_test)
+This function is used to predict class labels for samples in x_train.</p>
+<p>x_test:(float)
+It is the input samples.
+After the finetuning the model ,predict the testing data.</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="WithFineTunning.x_train">
+<code class="descclassname">WithFineTunning.</code><code class="descname">x_train</code><em class="property"> = array([[ -5.8993416 ,   3.3396392 ,  -6.1234956 , ...,  -6.2480693 ,           0.3381168 ,   5.290465  ],        [ -6.499282  ,   3.8706036 ,  -7.4932203 , ...,  -3.6343021 ,          -0.34181103,   4.90251   ],        [ -5.654762  ,   1.9259875 ,  -6.1749964 , ...,  -5.8343744 ,          -1.1202954 ,   3.622257  ],        ...,        [ -9.478991  ,   5.624862  , -14.254475  , ..., -10.784303  ,          -8.799544  ,   1.0086085 ],        [ -9.477905  ,   1.9732933 ,  -8.8654    , ...,  -7.661978  ,          -1.7229909 ,  -1.1477627 ],        [ -9.221298  ,   2.2874656 ,  -8.381129  , ...,  -2.908156  ,          -6.9181833 ,   4.42042   ]], dtype=float32)</em><a class="headerlink" href="#WithFineTunning.x_train" title="Permalink to this definition">¶</a></dt>
+<dd><p>FUNCTION :predict(x_train)
+This function is used to predict class labels for samples in x_train.</p>
+<p>x_train:(float)
+It is the input training samples.
+After the finetuning the model ,predict the training data.</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="WithFineTunning.y_pred">
+<code class="descclassname">WithFineTunning.</code><code class="descname">y_pred</code><em class="property"> = array([0., 0., 0., 2., 2., 0., 1., 0., 0., 0., 0., 1., 2., 0., 0., 3., 0.,        2., 1., 0., 1., 0., 0., 0., 1., 0., 1., 0., 0., 2., 1., 0., 0., 0.,        0., 2., 2., 0., 1., 2., 0., 1., 2., 0., 2., 0., 0., 2., 0., 1., 0.,        0., 0., 2., 1., 0., 1., 0., 1., 0., 1., 1., 3., 1., 0., 1., 0., 0.,        0., 1., 1., 1., 0., 0., 0., 0., 2., 0., 0., 0., 2., 2., 0., 0., 0.,        0., 0., 2., 3., 1., 1., 2., 0., 2., 2., 0., 2., 2., 0., 2., 1., 2.,        0., 2., 0., 1., 1., 1., 2., 0., 2., 2., 1., 0., 0., 0., 2., 1., 0.,        0., 0., 0., 2., 0., 0., 0., 2., 2., 0., 1., 0., 0., 1., 0., 0., 0.,        0., 1., 0., 0., 2., 0., 0., 2., 1., 2., 0., 0., 0., 0., 2., 0., 1.,        0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 1., 0., 0., 0., 0., 2.,        0., 2., 0., 0., 2., 2., 1., 0., 0., 2., 1., 0., 1., 1., 3., 0., 3.,        1., 2., 1., 0., 0., 2., 3., 1., 0., 3., 3., 3., 1., 2., 2., 2., 0.,        1., 1., 1., 1., 3., 3., 0., 1., 0., 1., 0., 1., 0., 2., 3., 2., 0.,        0., 0., 0., 0., 0., 1., 0., 0., 2., 0., 0., 1., 1., 2., 2., 3., 2.,        2., 0., 0., 1., 2., 3., 0., 0., 0., 0., 0., 0., 0., 1., 0., 1., 3.,        0., 2., 2., 0., 0., 0., 0., 1., 2., 0., 0., 0., 0., 1., 0., 1., 1.,        2., 3., 1., 0., 0., 0., 0., 0., 2., 3., 0., 2., 0., 2., 1., 0., 2.,        3., 2., 2., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.])</em><a class="headerlink" href="#WithFineTunning.y_pred" title="Permalink to this definition">¶</a></dt>
+<dd><p>function:predict(x_test)
+This function is used to predict class labels for samples in X.</p>
+<p>x_test:(object)
+It has input sample of testing datasets.
+x_test is come after the prediction of finetune model.</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="WithFineTunning.y_pred_proba">
+<code class="descclassname">WithFineTunning.</code><code class="descname">y_pred_proba</code><em class="property"> = array([[9.94835849e-01, 4.46758877e-03, 6.79331160e-04, 1.72466872e-05],        [9.92184867e-01, 6.85609631e-03, 9.11609580e-04, 4.74705903e-05],        [6.61987367e-01, 3.07401356e-01, 3.40603727e-03, 2.72052469e-02],        ...,        [9.41685601e-01, 1.15885028e-03, 5.71441316e-02, 1.14256166e-05],        [4.70738810e-01, 1.51593451e-01, 3.65388926e-01, 1.22788193e-02],        [9.98306227e-01, 1.45193042e-03, 2.40969292e-04, 8.41268379e-07]])</em><a class="headerlink" href="#WithFineTunning.y_pred_proba" title="Permalink to this definition">¶</a></dt>
+<dd><p>function:predict_proba(x_test)
+The predicted class probabilities of an input sample are computed as the mean predicted class probabilities of the trees in the forest</p>
+<p>x_test:(object)
+It has input sample of testing datasets.
+x_test is come after the prediction of finetune model.</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="WithFineTunning.y_test_binarize">
+<code class="descclassname">WithFineTunning.</code><code class="descname">y_test_binarize</code><em class="property"> = array([[1, 0, 0, 0],        [1, 0, 0, 0],        [0, 1, 0, 0],        ...,        [1, 0, 0, 0],        [0, 1, 0, 0],        [1, 0, 0, 0]])</em><a class="headerlink" href="#WithFineTunning.y_test_binarize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Inbuilt Function:label_binarize(y_test, classes=[0,1,2,3])</p>
+<p>This function makes it possible to compute this transformation for a fixed set of class labels known ahead of time.</p>
+<p>y_test:(object)
+Sequence of integer labels or multilabel data to encode.</p>
+<p>classes:(object)
+Uniquely holds the label for each class.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="WithFineTunning.zero_mix">
+<code class="descclassname">WithFineTunning.</code><code class="descname">zero_mix</code><span class="sig-paren">(</span><em>x</em>, <em>n</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/WithFineTunning.html#zero_mix"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#WithFineTunning.zero_mix" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function is used to padding,if the dimension is not equal.
+After all dimension is equal</p>
+<dl class="docutils">
+<dt>x <span class="classifier-delimiter">:</span> <span class="classifier">(int)</span></dt>
+<dd>If ‘x’ is replacment variable.</dd>
+<dt>n <span class="classifier-delimiter">:</span> <span class="classifier">(int)</span></dt>
+<dd>If ‘n’ is noise of data.</dd>
+</dl>
+<dl class="docutils">
+<dt>temp <span class="classifier-delimiter">:</span> <span class="classifier">(int)</span></dt>
+<dd>It is return value of noise . If  less data presnt ,so it has uniformely added zeros in random location.</dd>
+</dl>
+</dd></dl>
+
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  <li><a href="modules.html">Desktop</a><ul>
+      <li>Previous: <a href="SelectBest_Classification.html" title="previous chapter">SelectBest_Classification module</a></li>
+      <li>Next: <a href="WithoutFineTunning.html" title="next chapter">WithoutFineTunning module</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, Runad_Nagateja_Pritam.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.7</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/WithFineTunning.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

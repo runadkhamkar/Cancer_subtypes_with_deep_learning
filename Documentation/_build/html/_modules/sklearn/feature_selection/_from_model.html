@@ -1,0 +1,377 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>sklearn.feature_selection._from_model &#8212; Deep learning based methods for cancersubtype discovery 1 documentation</title>
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+   
+  <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for sklearn.feature_selection._from_model</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Authors: Gilles Louppe, Mathieu Blondel, Maheshakya Wijewardena</span>
+<span class="c1"># License: BSD 3 clause</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">numbers</span>
+
+<span class="kn">from</span> <span class="nn">._base</span> <span class="kn">import</span> <span class="n">SelectorMixin</span>
+<span class="kn">from</span> <span class="nn">._base</span> <span class="kn">import</span> <span class="n">_get_feature_importances</span>
+<span class="kn">from</span> <span class="nn">..base</span> <span class="kn">import</span> <span class="n">BaseEstimator</span><span class="p">,</span> <span class="n">clone</span><span class="p">,</span> <span class="n">MetaEstimatorMixin</span>
+<span class="kn">from</span> <span class="nn">..utils._tags</span> <span class="kn">import</span> <span class="n">_safe_tags</span>
+<span class="kn">from</span> <span class="nn">..utils.validation</span> <span class="kn">import</span> <span class="n">check_is_fitted</span>
+
+<span class="kn">from</span> <span class="nn">..exceptions</span> <span class="kn">import</span> <span class="n">NotFittedError</span>
+<span class="kn">from</span> <span class="nn">..utils.metaestimators</span> <span class="kn">import</span> <span class="n">if_delegate_has_method</span>
+<span class="kn">from</span> <span class="nn">..utils.validation</span> <span class="kn">import</span> <span class="n">_deprecate_positional_args</span>
+
+
+<span class="k">def</span> <span class="nf">_calculate_threshold</span><span class="p">(</span><span class="n">estimator</span><span class="p">,</span> <span class="n">importances</span><span class="p">,</span> <span class="n">threshold</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Interpret the threshold value&quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">threshold</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># determine default from estimator</span>
+        <span class="n">est_name</span> <span class="o">=</span> <span class="n">estimator</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
+        <span class="k">if</span> <span class="p">((</span><span class="nb">hasattr</span><span class="p">(</span><span class="n">estimator</span><span class="p">,</span> <span class="s2">&quot;penalty&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">estimator</span><span class="o">.</span><span class="n">penalty</span> <span class="o">==</span> <span class="s2">&quot;l1&quot;</span><span class="p">)</span> <span class="ow">or</span>
+                <span class="s2">&quot;Lasso&quot;</span> <span class="ow">in</span> <span class="n">est_name</span><span class="p">):</span>
+            <span class="c1"># the natural default threshold is 0 when l1 penalty was used</span>
+            <span class="n">threshold</span> <span class="o">=</span> <span class="mf">1e-5</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">threshold</span> <span class="o">=</span> <span class="s2">&quot;mean&quot;</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">threshold</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">if</span> <span class="s2">&quot;*&quot;</span> <span class="ow">in</span> <span class="n">threshold</span><span class="p">:</span>
+            <span class="n">scale</span><span class="p">,</span> <span class="n">reference</span> <span class="o">=</span> <span class="n">threshold</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;*&quot;</span><span class="p">)</span>
+            <span class="n">scale</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">scale</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+            <span class="n">reference</span> <span class="o">=</span> <span class="n">reference</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">reference</span> <span class="o">==</span> <span class="s2">&quot;median&quot;</span><span class="p">:</span>
+                <span class="n">reference</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">importances</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">reference</span> <span class="o">==</span> <span class="s2">&quot;mean&quot;</span><span class="p">:</span>
+                <span class="n">reference</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">importances</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unknown reference: &quot;</span> <span class="o">+</span> <span class="n">reference</span><span class="p">)</span>
+
+            <span class="n">threshold</span> <span class="o">=</span> <span class="n">scale</span> <span class="o">*</span> <span class="n">reference</span>
+
+        <span class="k">elif</span> <span class="n">threshold</span> <span class="o">==</span> <span class="s2">&quot;median&quot;</span><span class="p">:</span>
+            <span class="n">threshold</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">importances</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">threshold</span> <span class="o">==</span> <span class="s2">&quot;mean&quot;</span><span class="p">:</span>
+            <span class="n">threshold</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">importances</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Expected threshold=&#39;mean&#39; or threshold=&#39;median&#39; &quot;</span>
+                             <span class="s2">&quot;got </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">threshold</span><span class="p">)</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">threshold</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">threshold</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">threshold</span>
+
+
+<span class="k">class</span> <span class="nc">SelectFromModel</span><span class="p">(</span><span class="n">MetaEstimatorMixin</span><span class="p">,</span> <span class="n">SelectorMixin</span><span class="p">,</span> <span class="n">BaseEstimator</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Meta-transformer for selecting features based on importance weights.</span>
+
+<span class="sd">    .. versionadded:: 0.17</span>
+
+<span class="sd">    Read more in the :ref:`User Guide &lt;select_from_model&gt;`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    estimator : object</span>
+<span class="sd">        The base estimator from which the transformer is built.</span>
+<span class="sd">        This can be both a fitted (if ``prefit`` is set to True)</span>
+<span class="sd">        or a non-fitted estimator. The estimator should have a</span>
+<span class="sd">        ``feature_importances_`` or ``coef_`` attribute after fitting.</span>
+<span class="sd">        Otherwise, the ``importance_getter`` parameter should be used.</span>
+
+<span class="sd">    threshold : string or float, default=None</span>
+<span class="sd">        The threshold value to use for feature selection. Features whose</span>
+<span class="sd">        importance is greater or equal are kept while the others are</span>
+<span class="sd">        discarded. If &quot;median&quot; (resp. &quot;mean&quot;), then the ``threshold`` value is</span>
+<span class="sd">        the median (resp. the mean) of the feature importances. A scaling</span>
+<span class="sd">        factor (e.g., &quot;1.25*mean&quot;) may also be used. If None and if the</span>
+<span class="sd">        estimator has a parameter penalty set to l1, either explicitly</span>
+<span class="sd">        or implicitly (e.g, Lasso), the threshold used is 1e-5.</span>
+<span class="sd">        Otherwise, &quot;mean&quot; is used by default.</span>
+
+<span class="sd">    prefit : bool, default=False</span>
+<span class="sd">        Whether a prefit model is expected to be passed into the constructor</span>
+<span class="sd">        directly or not. If True, ``transform`` must be called directly</span>
+<span class="sd">        and SelectFromModel cannot be used with ``cross_val_score``,</span>
+<span class="sd">        ``GridSearchCV`` and similar utilities that clone the estimator.</span>
+<span class="sd">        Otherwise train the model using ``fit`` and then ``transform`` to do</span>
+<span class="sd">        feature selection.</span>
+
+<span class="sd">    norm_order : non-zero int, inf, -inf, default=1</span>
+<span class="sd">        Order of the norm used to filter the vectors of coefficients below</span>
+<span class="sd">        ``threshold`` in the case where the ``coef_`` attribute of the</span>
+<span class="sd">        estimator is of dimension 2.</span>
+
+<span class="sd">    max_features : int, default=None</span>
+<span class="sd">        The maximum number of features to select.</span>
+<span class="sd">        To only select based on ``max_features``, set ``threshold=-np.inf``.</span>
+
+<span class="sd">        .. versionadded:: 0.20</span>
+
+<span class="sd">    importance_getter : str or callable, default=&#39;auto&#39;</span>
+<span class="sd">        If &#39;auto&#39;, uses the feature importance either through a ``coef_``</span>
+<span class="sd">        attribute or ``feature_importances_`` attribute of estimator.</span>
+
+<span class="sd">        Also accepts a string that specifies an attribute name/path</span>
+<span class="sd">        for extracting feature importance (implemented with `attrgetter`).</span>
+<span class="sd">        For example, give `regressor_.coef_` in case of</span>
+<span class="sd">        :class:`~sklearn.compose.TransformedTargetRegressor`  or</span>
+<span class="sd">        `named_steps.clf.feature_importances_` in case of</span>
+<span class="sd">        :class:`~sklearn.pipeline.Pipeline` with its last step named `clf`.</span>
+
+<span class="sd">        If `callable`, overrides the default feature importance getter.</span>
+<span class="sd">        The callable is passed with the fitted estimator and it should</span>
+<span class="sd">        return importance for each feature.</span>
+
+<span class="sd">        .. versionadded:: 0.24</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    estimator_ : an estimator</span>
+<span class="sd">        The base estimator from which the transformer is built.</span>
+<span class="sd">        This is stored only when a non-fitted estimator is passed to the</span>
+<span class="sd">        ``SelectFromModel``, i.e when prefit is False.</span>
+
+<span class="sd">    threshold_ : float</span>
+<span class="sd">        The threshold value used for feature selection.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Allows NaN/Inf in the input if the underlying estimator does as well.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from sklearn.feature_selection import SelectFromModel</span>
+<span class="sd">    &gt;&gt;&gt; from sklearn.linear_model import LogisticRegression</span>
+<span class="sd">    &gt;&gt;&gt; X = [[ 0.87, -1.34,  0.31 ],</span>
+<span class="sd">    ...      [-2.79, -0.02, -0.85 ],</span>
+<span class="sd">    ...      [-1.34, -0.48, -2.55 ],</span>
+<span class="sd">    ...      [ 1.92,  1.48,  0.65 ]]</span>
+<span class="sd">    &gt;&gt;&gt; y = [0, 1, 0, 1]</span>
+<span class="sd">    &gt;&gt;&gt; selector = SelectFromModel(estimator=LogisticRegression()).fit(X, y)</span>
+<span class="sd">    &gt;&gt;&gt; selector.estimator_.coef_</span>
+<span class="sd">    array([[-0.3252302 ,  0.83462377,  0.49750423]])</span>
+<span class="sd">    &gt;&gt;&gt; selector.threshold_</span>
+<span class="sd">    0.55245...</span>
+<span class="sd">    &gt;&gt;&gt; selector.get_support()</span>
+<span class="sd">    array([False,  True, False])</span>
+<span class="sd">    &gt;&gt;&gt; selector.transform(X)</span>
+<span class="sd">    array([[-1.34],</span>
+<span class="sd">           [-0.02],</span>
+<span class="sd">           [-0.48],</span>
+<span class="sd">           [ 1.48]])</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    RFE : Recursive feature elimination based on importance weights.</span>
+<span class="sd">    RFECV : Recursive feature elimination with built-in cross-validated</span>
+<span class="sd">        selection of the best number of features.</span>
+<span class="sd">    SequentialFeatureSelector : Sequential cross-validation based feature</span>
+<span class="sd">        selection. Does not rely on importance weights.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nd">@_deprecate_positional_args</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">estimator</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prefit</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                 <span class="n">norm_order</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_features</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">importance_getter</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">estimator</span> <span class="o">=</span> <span class="n">estimator</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">threshold</span> <span class="o">=</span> <span class="n">threshold</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prefit</span> <span class="o">=</span> <span class="n">prefit</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">importance_getter</span> <span class="o">=</span> <span class="n">importance_getter</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">norm_order</span> <span class="o">=</span> <span class="n">norm_order</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">max_features</span> <span class="o">=</span> <span class="n">max_features</span>
+
+    <span class="k">def</span> <span class="nf">_get_support_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># SelectFromModel can directly call on transform.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">prefit</span><span class="p">:</span>
+            <span class="n">estimator</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">estimator</span>
+        <span class="k">elif</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;estimator_&#39;</span><span class="p">):</span>
+            <span class="n">estimator</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">estimator_</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Either fit the model before transform or set&#39;</span>
+                             <span class="s1">&#39; &quot;prefit=True&quot; while passing the fitted&#39;</span>
+                             <span class="s1">&#39; estimator to the constructor.&#39;</span><span class="p">)</span>
+        <span class="n">scores</span> <span class="o">=</span> <span class="n">_get_feature_importances</span><span class="p">(</span>
+            <span class="n">estimator</span><span class="o">=</span><span class="n">estimator</span><span class="p">,</span> <span class="n">getter</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">importance_getter</span><span class="p">,</span>
+            <span class="n">transform_func</span><span class="o">=</span><span class="s1">&#39;norm&#39;</span><span class="p">,</span> <span class="n">norm_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">norm_order</span><span class="p">)</span>
+        <span class="n">threshold</span> <span class="o">=</span> <span class="n">_calculate_threshold</span><span class="p">(</span><span class="n">estimator</span><span class="p">,</span> <span class="n">scores</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">threshold</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_features</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">scores</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+            <span class="n">candidate_indices</span> <span class="o">=</span> \
+                <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="o">-</span><span class="n">scores</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="s1">&#39;mergesort&#39;</span><span class="p">)[:</span><span class="bp">self</span><span class="o">.</span><span class="n">max_features</span><span class="p">]</span>
+            <span class="n">mask</span><span class="p">[</span><span class="n">candidate_indices</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">scores</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+        <span class="n">mask</span><span class="p">[</span><span class="n">scores</span> <span class="o">&lt;</span> <span class="n">threshold</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="n">mask</span>
+
+    <span class="k">def</span> <span class="nf">fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">fit_params</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Fit the SelectFromModel meta-transformer.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        X : array-like of shape (n_samples, n_features)</span>
+<span class="sd">            The training input samples.</span>
+
+<span class="sd">        y : array-like of shape (n_samples,), default=None</span>
+<span class="sd">            The target values (integers that correspond to classes in</span>
+<span class="sd">            classification, real numbers in regression).</span>
+
+<span class="sd">        **fit_params : Other estimator specific parameters</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        self : object</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_features</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">max_features</span><span class="p">,</span> <span class="n">numbers</span><span class="o">.</span><span class="n">Integral</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;&#39;max_features&#39; should be an integer between&quot;</span>
+                                <span class="s2">&quot; 0 and </span><span class="si">{}</span><span class="s2"> features. Got </span><span class="si">{!r}</span><span class="s2"> instead.&quot;</span>
+                                <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_features</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_features</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_features</span> <span class="o">&gt;</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;&#39;max_features&#39; should be 0 and </span><span class="si">{}</span><span class="s2"> features.&quot;</span>
+                                 <span class="s2">&quot;Got </span><span class="si">{}</span><span class="s2"> instead.&quot;</span>
+                                 <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_features</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">prefit</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">NotFittedError</span><span class="p">(</span>
+                <span class="s2">&quot;Since &#39;prefit=True&#39;, call transform directly&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">estimator_</span> <span class="o">=</span> <span class="n">clone</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">estimator</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">estimator_</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="o">**</span><span class="n">fit_params</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">threshold_</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">scores</span> <span class="o">=</span> <span class="n">_get_feature_importances</span><span class="p">(</span><span class="n">estimator</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">estimator_</span><span class="p">,</span>
+                                          <span class="n">getter</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">importance_getter</span><span class="p">,</span>
+                                          <span class="n">transform_func</span><span class="o">=</span><span class="s1">&#39;norm&#39;</span><span class="p">,</span>
+                                          <span class="n">norm_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">norm_order</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_calculate_threshold</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">estimator</span><span class="p">,</span> <span class="n">scores</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">threshold</span><span class="p">)</span>
+
+    <span class="nd">@if_delegate_has_method</span><span class="p">(</span><span class="s1">&#39;estimator&#39;</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">partial_fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">fit_params</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Fit the SelectFromModel meta-transformer only once.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        X : array-like of shape (n_samples, n_features)</span>
+<span class="sd">            The training input samples.</span>
+
+<span class="sd">        y : array-like of shape (n_samples,), default=None</span>
+<span class="sd">            The target values (integers that correspond to classes in</span>
+<span class="sd">            classification, real numbers in regression).</span>
+
+<span class="sd">        **fit_params : Other estimator specific parameters</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        self : object</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">prefit</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">NotFittedError</span><span class="p">(</span>
+                <span class="s2">&quot;Since &#39;prefit=True&#39;, call transform directly&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;estimator_&quot;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">estimator_</span> <span class="o">=</span> <span class="n">clone</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">estimator</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">estimator_</span><span class="o">.</span><span class="n">partial_fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="o">**</span><span class="n">fit_params</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">n_features_in_</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># For consistency with other estimators we raise a AttributeError so</span>
+        <span class="c1"># that hasattr() fails if the estimator isn&#39;t fitted.</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">check_is_fitted</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">NotFittedError</span> <span class="k">as</span> <span class="n">nfe</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span>
+                <span class="s2">&quot;</span><span class="si">{}</span><span class="s2"> object has no n_features_in_ attribute.&quot;</span>
+                <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+            <span class="p">)</span> <span class="kn">from</span> <span class="nn">nfe</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">estimator_</span><span class="o">.</span><span class="n">n_features_in_</span>
+
+    <span class="k">def</span> <span class="nf">_more_tags</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s1">&#39;allow_nan&#39;</span><span class="p">:</span> <span class="n">_safe_tags</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">estimator</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="s2">&quot;allow_nan&quot;</span><span class="p">)</span>
+        <span class="p">}</span>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, Runad_Nagateja_Pritam.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.7</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

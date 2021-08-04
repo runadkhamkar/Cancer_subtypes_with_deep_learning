@@ -1,0 +1,1483 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>tensorflow.python.keras.engine.functional &#8212; Deep learning based methods for cancersubtype discovery 1 documentation</title>
+    <link rel="stylesheet" href="../../../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../../',
+        VERSION:     '1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../../search.html" />
+   
+  <link rel="stylesheet" href="../../../../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for tensorflow.python.keras.engine.functional</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Copyright 2015 The TensorFlow Authors. All Rights Reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);</span>
+<span class="c1"># you may not use this file except in compliance with the License.</span>
+<span class="c1"># You may obtain a copy of the License at</span>
+<span class="c1">#</span>
+<span class="c1">#     http://www.apache.org/licenses/LICENSE-2.0</span>
+<span class="c1">#</span>
+<span class="c1"># Unless required by applicable law or agreed to in writing, software</span>
+<span class="c1"># distributed under the License is distributed on an &quot;AS IS&quot; BASIS,</span>
+<span class="c1"># WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.</span>
+<span class="c1"># See the License for the specific language governing permissions and</span>
+<span class="c1"># limitations under the License.</span>
+<span class="c1"># ==============================================================================</span>
+<span class="c1"># pylint: disable=protected-access</span>
+<span class="sd">&quot;&quot;&quot;A `Network` is way to compose layers: the topological form of a `Model`.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">division</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">print_function</span>
+
+<span class="kn">import</span> <span class="nn">collections</span>
+<span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">import</span> <span class="nn">itertools</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="kn">from</span> <span class="nn">six.moves</span> <span class="kn">import</span> <span class="nb">zip</span>  <span class="c1"># pylint: disable=redefined-builtin</span>
+
+<span class="kn">from</span> <span class="nn">tensorflow.python.eager</span> <span class="kn">import</span> <span class="n">context</span>
+<span class="kn">from</span> <span class="nn">tensorflow.python.framework</span> <span class="kn">import</span> <span class="n">ops</span>
+<span class="kn">from</span> <span class="nn">tensorflow.python.keras</span> <span class="kn">import</span> <span class="n">backend</span>
+<span class="kn">from</span> <span class="nn">tensorflow.python.keras.engine</span> <span class="kn">import</span> <span class="n">base_layer</span>
+<span class="kn">from</span> <span class="nn">tensorflow.python.keras.engine</span> <span class="kn">import</span> <span class="n">base_layer_utils</span>
+<span class="kn">from</span> <span class="nn">tensorflow.python.keras.engine</span> <span class="kn">import</span> <span class="n">input_layer</span> <span class="k">as</span> <span class="n">input_layer_module</span>
+<span class="kn">from</span> <span class="nn">tensorflow.python.keras.engine</span> <span class="kn">import</span> <span class="n">input_spec</span>
+<span class="kn">from</span> <span class="nn">tensorflow.python.keras.engine</span> <span class="kn">import</span> <span class="n">keras_tensor</span>
+<span class="kn">from</span> <span class="nn">tensorflow.python.keras.engine</span> <span class="kn">import</span> <span class="n">node</span> <span class="k">as</span> <span class="n">node_module</span>
+<span class="kn">from</span> <span class="nn">tensorflow.python.keras.engine</span> <span class="kn">import</span> <span class="n">training</span> <span class="k">as</span> <span class="n">training_lib</span>
+<span class="kn">from</span> <span class="nn">tensorflow.python.keras.engine</span> <span class="kn">import</span> <span class="n">training_utils</span>
+<span class="kn">from</span> <span class="nn">tensorflow.python.keras.saving.saved_model</span> <span class="kn">import</span> <span class="n">network_serialization</span>
+<span class="kn">from</span> <span class="nn">tensorflow.python.keras.utils</span> <span class="kn">import</span> <span class="n">generic_utils</span>
+<span class="kn">from</span> <span class="nn">tensorflow.python.keras.utils</span> <span class="kn">import</span> <span class="n">tf_inspect</span>
+<span class="kn">from</span> <span class="nn">tensorflow.python.keras.utils</span> <span class="kn">import</span> <span class="n">tf_utils</span>
+<span class="kn">from</span> <span class="nn">tensorflow.python.ops</span> <span class="kn">import</span> <span class="n">array_ops</span>
+<span class="kn">from</span> <span class="nn">tensorflow.python.ops</span> <span class="kn">import</span> <span class="n">math_ops</span>
+<span class="kn">from</span> <span class="nn">tensorflow.python.platform</span> <span class="kn">import</span> <span class="n">tf_logging</span> <span class="k">as</span> <span class="n">logging</span>
+<span class="kn">from</span> <span class="nn">tensorflow.python.training.tracking</span> <span class="kn">import</span> <span class="n">base</span> <span class="k">as</span> <span class="n">trackable</span>
+<span class="kn">from</span> <span class="nn">tensorflow.python.util</span> <span class="kn">import</span> <span class="n">nest</span>
+
+
+<span class="c1"># pylint: disable=g-classes-have-attributes</span>
+<span class="k">class</span> <span class="nc">Functional</span><span class="p">(</span><span class="n">training_lib</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+  <span class="sd">&quot;&quot;&quot;A `Functional` model is a `Model` defined as a directed graph of layers.</span>
+
+<span class="sd">  Three types of `Model` exist: subclassed `Model`, `Functional` model,</span>
+<span class="sd">  and `Sequential` (a special case of `Functional`).</span>
+<span class="sd">  In general, more Keras features are supported with `Functional`</span>
+<span class="sd">  than with subclassed `Model`s, specifically:</span>
+
+<span class="sd">  - Model cloning (`keras.models.clone`)</span>
+<span class="sd">  - Serialization (`model.get_config()/from_config`, `model.to_json()/to_yaml()`</span>
+<span class="sd">  - Whole-model saving (`model.save()`)</span>
+
+<span class="sd">  A `Functional` model can be instantiated by passing two arguments to</span>
+<span class="sd">  `__init__`. The first argument is the `keras.Input` Tensors that represent</span>
+<span class="sd">  the inputs to the model. The second argument specifies the output</span>
+<span class="sd">  tensors that represent the outputs of this model. Both arguments can be a</span>
+<span class="sd">  nested structure of tensors.</span>
+
+<span class="sd">  Example:</span>
+
+<span class="sd">  ```</span>
+<span class="sd">  inputs = {&#39;x1&#39;: keras.Input(shape=(10,)), &#39;x2&#39;: keras.Input(shape=(1,))}</span>
+<span class="sd">  t = keras.layers.Dense(1, activation=&#39;relu&#39;)(inputs[&#39;x1&#39;])</span>
+<span class="sd">  outputs = keras.layers.Add()([t, inputs[&#39;x2&#39;])</span>
+<span class="sd">  model = keras.Model(inputs, outputs)</span>
+<span class="sd">  ```</span>
+
+<span class="sd">  A `Functional` model constructed using the Functional API can also include raw</span>
+<span class="sd">  TensorFlow functions, with the exception of functions that create Variables</span>
+<span class="sd">  or assign ops.</span>
+
+<span class="sd">  Example:</span>
+
+<span class="sd">  ```</span>
+<span class="sd">  inputs = keras.Input(shape=(10,))</span>
+<span class="sd">  x = keras.layers.Dense(1)(inputs)</span>
+<span class="sd">  outputs = tf.nn.relu(x)</span>
+<span class="sd">  model = keras.Model(inputs, outputs)</span>
+<span class="sd">  ```</span>
+
+<span class="sd">  Arguments:</span>
+<span class="sd">    inputs: List of input tensors (must be created via `tf.keras.Input()`).</span>
+<span class="sd">    outputs: List of outputs tensors.</span>
+<span class="sd">    name: String, optional. Name of the model.</span>
+<span class="sd">    trainable: Boolean, whether the model&#39;s variables should be trainable.</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+
+  <span class="c1"># See tf.Module for the usage of this property.</span>
+  <span class="c1"># The key of _layer_call_argspecs is a layer. tf.Module._flatten will fail to</span>
+  <span class="c1"># flatten the key since it is trying to convert Trackable/Layer to a string.</span>
+  <span class="n">_TF_MODULE_IGNORED_PROPERTIES</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">chain</span><span class="p">(</span>
+      <span class="p">(</span><span class="s1">&#39;_layer_call_argspecs&#39;</span><span class="p">,</span> <span class="s1">&#39;_compiled_trainable_state&#39;</span><span class="p">,</span>
+       <span class="s1">&#39;_output_mask_cache&#39;</span><span class="p">,</span> <span class="s1">&#39;_output_tensor_cache&#39;</span><span class="p">,</span> <span class="s1">&#39;_output_shape_cache&#39;</span><span class="p">),</span>
+      <span class="n">training_lib</span><span class="o">.</span><span class="n">Model</span><span class="o">.</span><span class="n">_TF_MODULE_IGNORED_PROPERTIES</span>
+  <span class="p">))</span>
+
+  <span class="nd">@trackable</span><span class="o">.</span><span class="n">no_automatic_dependency_tracking</span>
+  <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inputs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">outputs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">trainable</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+               <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="c1"># This is used by the Model class, since we have some logic to swap the</span>
+    <span class="c1"># class in the __new__ method, which will lead to __init__ get invoked</span>
+    <span class="c1"># twice. Using the skip_init to skip one of the invocation of __init__ to</span>
+    <span class="c1"># avoid any side effects</span>
+    <span class="n">skip_init</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;skip_init&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">skip_init</span><span class="p">:</span>
+      <span class="k">return</span>
+    <span class="n">generic_utils</span><span class="o">.</span><span class="n">validate_kwargs</span><span class="p">(</span><span class="n">kwargs</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="nb">super</span><span class="p">(</span><span class="n">Functional</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">trainable</span><span class="o">=</span><span class="n">trainable</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_init_graph_network</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">outputs</span><span class="p">)</span>
+
+  <span class="nd">@trackable</span><span class="o">.</span><span class="n">no_automatic_dependency_tracking</span>
+  <span class="k">def</span> <span class="nf">_init_graph_network</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="n">outputs</span><span class="p">):</span>
+    <span class="n">base_layer</span><span class="o">.</span><span class="n">keras_api_gauge</span><span class="o">.</span><span class="n">get_cell</span><span class="p">(</span><span class="s1">&#39;Functional&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+    <span class="c1"># This method is needed for Sequential to reinitialize graph network when</span>
+    <span class="c1"># layer is added or removed.</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_is_graph_network</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="c1"># Normalize and set self.inputs, self.outputs.</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">inputs</span><span class="p">))</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+      <span class="n">inputs</span> <span class="o">=</span> <span class="n">inputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">outputs</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">outputs</span><span class="p">))</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+      <span class="n">outputs</span> <span class="o">=</span> <span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_nested_inputs</span> <span class="o">=</span> <span class="n">inputs</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_nested_outputs</span> <span class="o">=</span> <span class="n">outputs</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span> <span class="o">=</span> <span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">inputs</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span> <span class="o">=</span> <span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">outputs</span><span class="p">)</span>
+
+    <span class="c1"># Models constructed with a single Tensor or list of Tensors can</span>
+    <span class="c1"># be called with a dict, where the keys of the dict are the names</span>
+    <span class="c1"># of the `Input` objects. Extra keys are ignored with warning.</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">nest</span><span class="o">.</span><span class="n">is_nested</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nested_inputs</span><span class="p">):</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">_enable_dict_to_input_mapping</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">elif</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nested_inputs</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">))</span> <span class="ow">and</span>
+          <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">nest</span><span class="o">.</span><span class="n">is_nested</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nested_inputs</span><span class="p">)):</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">_enable_dict_to_input_mapping</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">elif</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nested_inputs</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span>
+          <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">nest</span><span class="o">.</span><span class="n">is_nested</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nested_inputs</span><span class="o">.</span><span class="n">values</span><span class="p">())):</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">_enable_dict_to_input_mapping</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">else</span><span class="p">:</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">_enable_dict_to_input_mapping</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">keras_tensor</span><span class="o">.</span><span class="n">keras_tensors_enabled</span><span class="p">():</span>
+      <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">tensor</span><span class="p">,</span> <span class="s1">&#39;_keras_history&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">tensor</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span><span class="p">):</span>
+        <span class="n">base_layer_utils</span><span class="o">.</span><span class="n">create_keras_history</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nested_outputs</span><span class="p">)</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">_validate_graph_inputs_and_outputs</span><span class="p">()</span>
+
+    <span class="c1"># A Network does not create weights of its own, thus it is already</span>
+    <span class="c1"># built.</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">built</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_build_input_shape</span> <span class="o">=</span> <span class="n">nest</span><span class="o">.</span><span class="n">map_structure</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">inputs</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_compute_output_and_mask_jointly</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="c1"># `_expects_training_arg` is True since the `training` argument is always</span>
+    <span class="c1"># present in the signature of the `call` method of a graph network.</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_expects_training_arg</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_expects_mask_arg</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="c1"># A graph network does not autocast inputs, as its layers will cast them</span>
+    <span class="c1"># instead.</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_autocast</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">_input_layers</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_output_layers</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_input_coordinates</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_output_coordinates</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="c1"># This is for performance optimization when calling the Network on new</span>
+    <span class="c1"># inputs. Every time the Network is called on a set on input tensors,</span>
+    <span class="c1"># we compute the output tensors, output masks and output shapes in one pass,</span>
+    <span class="c1"># then cache them here. When any of these outputs is queried later, we</span>
+    <span class="c1"># retrieve it from there instead of recomputing it.</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_output_mask_cache</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_output_tensor_cache</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_output_shape_cache</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="c1"># Build self._output_layers:</span>
+    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span><span class="p">:</span>
+      <span class="n">layer</span><span class="p">,</span> <span class="n">node_index</span><span class="p">,</span> <span class="n">tensor_index</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">_keras_history</span>  <span class="c1"># pylint: disable=protected-access</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">_output_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layer</span><span class="p">)</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">_output_coordinates</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">layer</span><span class="p">,</span> <span class="n">node_index</span><span class="p">,</span> <span class="n">tensor_index</span><span class="p">))</span>
+
+    <span class="c1"># Build self._input_layers:</span>
+    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="p">:</span>
+      <span class="n">layer</span><span class="p">,</span> <span class="n">node_index</span><span class="p">,</span> <span class="n">tensor_index</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">_keras_history</span>  <span class="c1"># pylint: disable=protected-access</span>
+      <span class="c1"># It&#39;s supposed to be an input layer, so only one node</span>
+      <span class="c1"># and one tensor output.</span>
+      <span class="k">assert</span> <span class="n">node_index</span> <span class="o">==</span> <span class="mi">0</span>
+      <span class="k">assert</span> <span class="n">tensor_index</span> <span class="o">==</span> <span class="mi">0</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">_input_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layer</span><span class="p">)</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">_input_coordinates</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">layer</span><span class="p">,</span> <span class="n">node_index</span><span class="p">,</span> <span class="n">tensor_index</span><span class="p">))</span>
+
+    <span class="c1"># Keep track of the network&#39;s nodes and layers.</span>
+    <span class="n">nodes</span><span class="p">,</span> <span class="n">nodes_by_depth</span><span class="p">,</span> <span class="n">layers</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">_map_graph_network</span><span class="p">(</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_network_nodes</span> <span class="o">=</span> <span class="n">nodes</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_nodes_by_depth</span> <span class="o">=</span> <span class="n">nodes_by_depth</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_layers</span> <span class="o">=</span> <span class="n">layers</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_layer_call_argspecs</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_layers</span><span class="p">:</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">_layer_call_argspecs</span><span class="p">[</span><span class="n">layer</span><span class="p">]</span> <span class="o">=</span> <span class="n">tf_inspect</span><span class="o">.</span><span class="n">getfullargspec</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">call</span><span class="p">)</span>
+
+    <span class="c1"># Build self.input_names and self.output_names.</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_set_output_names</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">input_names</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_feed_input_names</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_feed_inputs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_feed_input_shapes</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_input_layers</span><span class="p">:</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">input_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+      <span class="k">if</span> <span class="n">layer</span><span class="o">.</span><span class="n">is_placeholder</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_feed_input_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="c1"># Use batch_input_shape here because non-eager composite tensors may not</span>
+        <span class="c1"># have a shape attribute that&#39;s meaningful (sparse, for instance, has</span>
+        <span class="c1"># a tensor that&#39;s non-constant and needs to be fed). This means that</span>
+        <span class="c1"># input layers that create placeholders will need to have the</span>
+        <span class="c1"># batch_input_shape attr to allow for input shape validation.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_feed_input_shapes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">_batch_input_shape</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_feed_inputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">input</span><span class="p">)</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">_compute_tensor_usage_count</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_set_save_spec</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nested_inputs</span><span class="p">)</span>
+    <span class="n">tf_utils</span><span class="o">.</span><span class="n">assert_no_legacy_layers</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">layers</span><span class="p">)</span>
+
+  <span class="nd">@property</span>
+  <span class="k">def</span> <span class="nf">input</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Retrieves the input tensor(s) of a layer.</span>
+
+<span class="sd">    Only applicable if the layer has exactly one input,</span>
+<span class="sd">    i.e. if it is connected to one incoming layer.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Input tensor or list of input tensors.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">      RuntimeError: If called in Eager mode.</span>
+<span class="sd">      AttributeError: If no inbound nodes are found.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nested_inputs</span>
+
+  <span class="nd">@property</span>
+  <span class="k">def</span> <span class="nf">input_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Retrieves the input shape(s) of a layer.</span>
+
+<span class="sd">    Only applicable if the layer has exactly one input,</span>
+<span class="sd">    i.e. if it is connected to one incoming layer, or if all inputs</span>
+<span class="sd">    have the same shape.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Input shape, as an integer shape tuple</span>
+<span class="sd">        (or list of shape tuples, one tuple per input tensor).</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        AttributeError: if the layer has no defined input_shape.</span>
+<span class="sd">        RuntimeError: if called in Eager mode.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">nest</span><span class="o">.</span><span class="n">map_structure</span><span class="p">(</span><span class="n">backend</span><span class="o">.</span><span class="n">int_shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">input</span><span class="p">)</span>
+
+  <span class="nd">@property</span>
+  <span class="k">def</span> <span class="nf">input_spec</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;_manual_input_spec&#39;</span><span class="p">):</span>
+      <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_manual_input_spec</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nested_inputs</span><span class="p">,</span> <span class="p">(</span><span class="nb">dict</span><span class="p">,</span> <span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">))</span> <span class="ow">and</span>
+        <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nested_inputs</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="p">)):</span>
+      <span class="c1"># Case where we have a nested structure.</span>
+      <span class="c1"># In such a case we can&#39;t safely run any checks.</span>
+      <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nested_inputs</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+      <span class="c1"># Case where `_nested_inputs` is a plain dict of Inputs.</span>
+      <span class="n">names</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nested_inputs</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+      <span class="k">return</span> <span class="p">[</span><span class="n">input_spec</span><span class="o">.</span><span class="n">InputSpec</span><span class="p">(</span>
+          <span class="n">shape</span><span class="o">=</span><span class="n">shape_with_no_batch_size</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nested_inputs</span><span class="p">[</span><span class="n">name</span><span class="p">]),</span>
+          <span class="n">allow_last_axis_squeeze</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">names</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+      <span class="c1"># Single input, or list / tuple of inputs.</span>
+      <span class="c1"># The data may be passed as a dict keyed by input name.</span>
+      <span class="k">return</span> <span class="p">[</span><span class="n">input_spec</span><span class="o">.</span><span class="n">InputSpec</span><span class="p">(</span>
+          <span class="n">shape</span><span class="o">=</span><span class="n">shape_with_no_batch_size</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">allow_last_axis_squeeze</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+          <span class="n">name</span><span class="o">=</span><span class="n">x</span><span class="o">.</span><span class="n">_keras_history</span><span class="o">.</span><span class="n">layer</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="p">]</span>
+
+  <span class="nd">@input_spec</span><span class="o">.</span><span class="n">setter</span>
+  <span class="k">def</span> <span class="nf">input_spec</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_manual_input_spec</span> <span class="o">=</span> <span class="n">value</span>
+
+  <span class="nd">@property</span>
+  <span class="k">def</span> <span class="nf">output</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Retrieves the output tensor(s) of a layer.</span>
+
+<span class="sd">    Only applicable if the layer has exactly one output,</span>
+<span class="sd">    i.e. if it is connected to one incoming layer.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">      Output tensor or list of output tensors.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">      AttributeError: if the layer is connected to more than one incoming</span>
+<span class="sd">        layers.</span>
+<span class="sd">      RuntimeError: if called in Eager mode.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nested_outputs</span>
+
+  <span class="nd">@property</span>
+  <span class="k">def</span> <span class="nf">output_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Retrieves the output shape(s) of a layer.</span>
+
+<span class="sd">    Only applicable if the layer has one output,</span>
+<span class="sd">    or if all outputs have the same shape.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Output shape, as an integer shape tuple</span>
+<span class="sd">        (or list of shape tuples, one tuple per output tensor).</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        AttributeError: if the layer has no defined output shape.</span>
+<span class="sd">        RuntimeError: if called in Eager mode.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">nest</span><span class="o">.</span><span class="n">map_structure</span><span class="p">(</span><span class="n">backend</span><span class="o">.</span><span class="n">int_shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">output</span><span class="p">)</span>
+
+  <span class="k">def</span> <span class="nf">_set_output_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Assigns unique names to the Network&#39;s outputs.</span>
+
+<span class="sd">    Output layers with multiple output tensors would otherwise lead to duplicate</span>
+<span class="sd">    names in self.output_names.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">uniquified</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">output_names</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">prefix_count</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_output_layers</span><span class="p">:</span>
+      <span class="n">proposal</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">name</span>
+      <span class="k">while</span> <span class="n">proposal</span> <span class="ow">in</span> <span class="n">output_names</span><span class="p">:</span>
+        <span class="n">existing_count</span> <span class="o">=</span> <span class="n">prefix_count</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">proposal</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">_</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">existing_count</span><span class="p">)</span>
+        <span class="n">prefix_count</span><span class="p">[</span><span class="n">layer</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">existing_count</span> <span class="o">+</span> <span class="mi">1</span>
+      <span class="n">output_names</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">proposal</span><span class="p">)</span>
+      <span class="n">uniquified</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">proposal</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">output_names</span> <span class="o">=</span> <span class="n">uniquified</span>
+
+  <span class="nd">@property</span>
+  <span class="k">def</span> <span class="nf">_layer_checkpoint_dependencies</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Dictionary of layer dependencies to be included in the checkpoint.&quot;&quot;&quot;</span>
+    <span class="n">weight_layer_index</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="n">dependencies</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">layer_index</span><span class="p">,</span> <span class="n">layer</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">layers</span><span class="p">):</span>
+      <span class="k">try</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">layer</span><span class="o">.</span><span class="n">weights</span><span class="p">:</span>
+          <span class="c1"># Keep a separate index for layers which have weights. This allows</span>
+          <span class="c1"># users to insert Layers without weights anywhere in the network</span>
+          <span class="c1"># without breaking checkpoints.</span>
+          <span class="n">dependencies</span><span class="p">[</span><span class="s1">&#39;layer_with_weights-</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">weight_layer_index</span><span class="p">]</span> <span class="o">=</span> <span class="n">layer</span>
+          <span class="n">weight_layer_index</span> <span class="o">+=</span> <span class="mi">1</span>
+      <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+        <span class="c1"># The layer might have weights, but may not be built yet. We just treat</span>
+        <span class="c1"># it as layer without weight.</span>
+        <span class="k">pass</span>
+
+      <span class="c1"># Even if it doesn&#39;t have weights, we should still track everything in</span>
+      <span class="c1"># case it has/will have Trackable dependencies.</span>
+      <span class="n">dependencies</span><span class="p">[</span><span class="s1">&#39;layer-</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">layer_index</span><span class="p">]</span> <span class="o">=</span> <span class="n">layer</span>
+    <span class="k">return</span> <span class="n">dependencies</span>
+
+  <span class="nd">@property</span>
+  <span class="k">def</span> <span class="nf">_checkpoint_dependencies</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="n">dependencies</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">trackable</span><span class="o">.</span><span class="n">TrackableReference</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">ref</span><span class="o">=</span><span class="n">layer</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">layer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_layer_checkpoint_dependencies</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
+    <span class="n">dependencies</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="nb">super</span><span class="p">(</span><span class="n">Functional</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_checkpoint_dependencies</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">dependencies</span>
+
+  <span class="k">def</span> <span class="nf">_lookup_dependency</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+    <span class="n">layer_dependencies</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_layer_checkpoint_dependencies</span>
+    <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">layer_dependencies</span><span class="p">:</span>
+      <span class="k">return</span> <span class="n">layer_dependencies</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+    <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Functional</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_lookup_dependency</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+
+  <span class="k">def</span> <span class="nf">_handle_deferred_layer_dependencies</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">layers</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Handles layer checkpoint dependencies that are added after init.&quot;&quot;&quot;</span>
+    <span class="n">layer_checkpoint_dependencies</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_layer_checkpoint_dependencies</span>
+    <span class="n">layer_to_name</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="p">:</span> <span class="n">k</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">layer_checkpoint_dependencies</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+    <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">layers</span><span class="p">:</span>
+      <span class="k">if</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">layer_to_name</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_handle_deferred_dependencies</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">layer_to_name</span><span class="p">[</span><span class="n">layer</span><span class="p">],</span>
+                                           <span class="n">trackable</span><span class="o">=</span><span class="n">layer</span><span class="p">)</span>
+
+  <span class="nd">@property</span>
+  <span class="k">def</span> <span class="nf">_should_compute_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">return</span> <span class="kc">True</span>
+
+  <span class="k">def</span> <span class="nf">compute_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="n">mask</span><span class="p">):</span>
+    <span class="c1"># TODO(omalleyt): b/123540974 This function is not really safe to call</span>
+    <span class="c1"># by itself because it will duplicate any updates and losses in graph</span>
+    <span class="c1"># mode by `call`ing the Layers again.</span>
+    <span class="n">output_tensors</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_run_internal_graph</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="n">mask</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">nest</span><span class="o">.</span><span class="n">map_structure</span><span class="p">(</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="s1">&#39;_keras_mask&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+                              <span class="n">output_tensors</span><span class="p">)</span>
+
+  <span class="k">def</span> <span class="nf">call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="n">training</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Calls the model on new inputs.</span>
+
+<span class="sd">    In this case `call` just reapplies</span>
+<span class="sd">    all ops in the graph to the new inputs</span>
+<span class="sd">    (e.g. build a new computational graph from the provided inputs).</span>
+
+<span class="sd">    Arguments:</span>
+<span class="sd">        inputs: A tensor or list of tensors.</span>
+<span class="sd">        training: Boolean or boolean scalar tensor, indicating whether to run</span>
+<span class="sd">          the `Network` in training mode or inference mode.</span>
+<span class="sd">        mask: A mask or list of masks. A mask can be</span>
+<span class="sd">            either a tensor or None (no mask).</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A tensor if there is a single output, or</span>
+<span class="sd">        a list of tensors if there are more than one outputs.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_run_internal_graph</span><span class="p">(</span>
+        <span class="n">inputs</span><span class="p">,</span> <span class="n">training</span><span class="o">=</span><span class="n">training</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="n">mask</span><span class="p">)</span>
+
+  <span class="k">def</span> <span class="nf">compute_output_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_shape</span><span class="p">):</span>
+    <span class="c1"># Convert any shapes in tuple format to TensorShapes.</span>
+    <span class="n">input_shape</span> <span class="o">=</span> <span class="n">tf_utils</span><span class="o">.</span><span class="n">convert_shapes</span><span class="p">(</span><span class="n">input_shape</span><span class="p">,</span> <span class="n">to_tuples</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">input_shape</span><span class="p">))</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_input_layers</span><span class="p">)):</span>
+      <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Invalid input_shape argument &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">input_shape</span><span class="p">)</span> <span class="o">+</span>
+                       <span class="s1">&#39;: model has &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_input_layers</span><span class="p">))</span> <span class="o">+</span>
+                       <span class="s1">&#39; tensor inputs.&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Use the tuple of TensorShape as the cache key, since tuple is hashable</span>
+    <span class="c1"># and can be used as hash key.</span>
+    <span class="k">try</span><span class="p">:</span>
+      <span class="n">cache_key</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">tf_utils</span><span class="o">.</span><span class="n">convert_shapes</span><span class="p">(</span><span class="n">input_shape</span><span class="p">,</span> <span class="n">to_tuples</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+      <span class="k">if</span> <span class="n">cache_key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_output_shape_cache</span><span class="p">:</span>
+        <span class="c1"># Cache hit. Return shapes as TensorShapes.</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_output_shape_cache</span><span class="p">[</span><span class="n">cache_key</span><span class="p">]</span>
+    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+      <span class="c1"># In case there are unknown TensorShape, eg for sparse tensor input,</span>
+      <span class="c1"># We skip the caching since the shape is unknown.</span>
+      <span class="k">pass</span>
+
+    <span class="n">layers_to_output_shapes</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">layer</span><span class="p">,</span> <span class="n">shape</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_input_layers</span><span class="p">,</span> <span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">input_shape</span><span class="p">)):</span>
+      <span class="c1"># It&#39;s an input layer: then `compute_output_shape` is identity,</span>
+      <span class="c1"># and there is only one node and one tensor..</span>
+      <span class="n">shape_key</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s1">&#39;_0_0&#39;</span>
+      <span class="n">layers_to_output_shapes</span><span class="p">[</span><span class="n">shape_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">shape</span>
+
+    <span class="n">depth_keys</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nodes_by_depth</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+    <span class="n">depth_keys</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="c1"># Iterate over nodes, by depth level.</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">depth_keys</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+      <span class="k">for</span> <span class="n">depth</span> <span class="ow">in</span> <span class="n">depth_keys</span><span class="p">:</span>
+        <span class="n">nodes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nodes_by_depth</span><span class="p">[</span><span class="n">depth</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">:</span>
+          <span class="n">layer</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">layer</span>
+          <span class="k">if</span> <span class="n">layer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_input_layers</span><span class="p">:</span>
+            <span class="c1"># We&#39;ve already covered the input layers</span>
+            <span class="c1"># a few lines above.</span>
+            <span class="k">continue</span>
+          <span class="c1"># Get the input shapes for the first argument of the node</span>
+          <span class="n">layer_input_shapes</span> <span class="o">=</span> <span class="p">[]</span>
+          <span class="n">layer_inputs</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">call_args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+          <span class="k">for</span> <span class="n">layer_input</span> <span class="ow">in</span> <span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">layer_inputs</span><span class="p">):</span>
+            <span class="n">kh</span> <span class="o">=</span> <span class="n">layer_input</span><span class="o">.</span><span class="n">_keras_history</span>
+            <span class="n">input_layer_key</span> <span class="o">=</span> <span class="n">kh</span><span class="o">.</span><span class="n">layer</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s1">&#39;_</span><span class="si">%s</span><span class="s1">_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">kh</span><span class="o">.</span><span class="n">node_index</span><span class="p">,</span>
+                                                          <span class="n">kh</span><span class="o">.</span><span class="n">tensor_index</span><span class="p">)</span>
+            <span class="n">layer_input_shapes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layers_to_output_shapes</span><span class="p">[</span><span class="n">input_layer_key</span><span class="p">])</span>
+          <span class="n">layer_input_shapes</span> <span class="o">=</span> <span class="n">nest</span><span class="o">.</span><span class="n">pack_sequence_as</span><span class="p">(</span><span class="n">layer_inputs</span><span class="p">,</span>
+                                                     <span class="n">layer_input_shapes</span><span class="p">)</span>
+          <span class="c1"># Layers expect shapes to be tuples for `compute_output_shape`.</span>
+          <span class="n">layer_input_shapes</span> <span class="o">=</span> <span class="n">tf_utils</span><span class="o">.</span><span class="n">convert_shapes</span><span class="p">(</span>
+              <span class="n">layer_input_shapes</span><span class="p">,</span> <span class="n">to_tuples</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+          <span class="n">layer_output_shapes</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">compute_output_shape</span><span class="p">(</span><span class="n">layer_input_shapes</span><span class="p">)</span>
+          <span class="c1"># Convert back to TensorShapes.</span>
+          <span class="n">layer_output_shapes</span> <span class="o">=</span> <span class="n">tf_utils</span><span class="o">.</span><span class="n">convert_shapes</span><span class="p">(</span>
+              <span class="n">layer_output_shapes</span><span class="p">,</span> <span class="n">to_tuples</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+          <span class="n">node_index</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">_inbound_nodes</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>  <span class="c1"># pylint: disable=protected-access</span>
+          <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">shape</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">layer_output_shapes</span><span class="p">)):</span>
+            <span class="n">shape_key</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s1">&#39;_</span><span class="si">%s</span><span class="s1">_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">node_index</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span>
+            <span class="n">layers_to_output_shapes</span><span class="p">[</span><span class="n">shape_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">shape</span>
+
+      <span class="c1"># Read final output shapes from layers_to_output_shapes.</span>
+      <span class="n">output_shapes</span> <span class="o">=</span> <span class="p">[]</span>
+      <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_output_layers</span><span class="p">)):</span>
+        <span class="n">layer</span><span class="p">,</span> <span class="n">node_index</span><span class="p">,</span> <span class="n">tensor_index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_output_coordinates</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">shape_key</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s1">&#39;_</span><span class="si">%s</span><span class="s1">_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">node_index</span><span class="p">,</span> <span class="n">tensor_index</span><span class="p">)</span>
+        <span class="n">output_shapes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layers_to_output_shapes</span><span class="p">[</span><span class="n">shape_key</span><span class="p">])</span>
+      <span class="n">output_shapes</span> <span class="o">=</span> <span class="n">nest</span><span class="o">.</span><span class="n">pack_sequence_as</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nested_outputs</span><span class="p">,</span> <span class="n">output_shapes</span><span class="p">)</span>
+      <span class="c1"># Store in cache.</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">_output_shape_cache</span><span class="p">[</span><span class="n">cache_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">output_shapes</span>
+
+    <span class="c1"># Return shapes as TensorShapes.</span>
+    <span class="k">return</span> <span class="n">output_shapes</span>
+
+  <span class="k">def</span> <span class="nf">_init_set_name</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">zero_based</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">name</span><span class="p">:</span>
+      <span class="n">cls_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
+      <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span> <span class="o">==</span> <span class="n">Functional</span><span class="p">:</span>
+        <span class="c1"># Hide the functional class name from user, since its not a public</span>
+        <span class="c1"># visible class. Use &quot;Model&quot; instead,</span>
+        <span class="n">cls_name</span> <span class="o">=</span> <span class="s1">&#39;Model&#39;</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">=</span> <span class="n">backend</span><span class="o">.</span><span class="n">unique_object_name</span><span class="p">(</span>
+          <span class="n">generic_utils</span><span class="o">.</span><span class="n">to_snake_case</span><span class="p">(</span><span class="n">cls_name</span><span class="p">),</span>
+          <span class="n">zero_based</span><span class="o">=</span><span class="n">zero_based</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">=</span> <span class="n">name</span>
+
+  <span class="k">def</span> <span class="nf">_run_internal_graph</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="n">training</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Computes output tensors for new inputs.</span>
+
+<span class="sd">    # Note:</span>
+<span class="sd">        - Can be run on non-Keras tensors.</span>
+
+<span class="sd">    Arguments:</span>
+<span class="sd">        inputs: Tensor or nested structure of Tensors.</span>
+<span class="sd">        training: Boolean learning phase.</span>
+<span class="sd">        mask: (Optional) Tensor or nested structure of Tensors.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        output_tensors</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">inputs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_flatten_to_reference_inputs</span><span class="p">(</span><span class="n">inputs</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">mask</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+      <span class="n">masks</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">inputs</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+      <span class="n">masks</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_flatten_to_reference_inputs</span><span class="p">(</span><span class="n">mask</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">input_t</span><span class="p">,</span> <span class="n">mask</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">masks</span><span class="p">):</span>
+      <span class="n">input_t</span><span class="o">.</span><span class="n">_keras_mask</span> <span class="o">=</span> <span class="n">mask</span>
+
+    <span class="c1"># Dictionary mapping reference tensors to computed tensors.</span>
+    <span class="n">tensor_dict</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">tensor_usage_count</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tensor_usage_count</span>
+    <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="p">,</span> <span class="n">inputs</span><span class="p">):</span>
+      <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conform_to_reference_input</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">ref_input</span><span class="o">=</span><span class="n">x</span><span class="p">)</span>
+      <span class="n">x_id</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+      <span class="n">tensor_dict</span><span class="p">[</span><span class="n">x_id</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">y</span><span class="p">]</span> <span class="o">*</span> <span class="n">tensor_usage_count</span><span class="p">[</span><span class="n">x_id</span><span class="p">]</span>
+
+    <span class="n">nodes_by_depth</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nodes_by_depth</span>
+    <span class="n">depth_keys</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">nodes_by_depth</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+    <span class="n">depth_keys</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">depth</span> <span class="ow">in</span> <span class="n">depth_keys</span><span class="p">:</span>
+      <span class="n">nodes</span> <span class="o">=</span> <span class="n">nodes_by_depth</span><span class="p">[</span><span class="n">depth</span><span class="p">]</span>
+      <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">is_input</span><span class="p">:</span>
+          <span class="k">continue</span>  <span class="c1"># Input tensors already exist.</span>
+
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">t_id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">tensor_dict</span> <span class="k">for</span> <span class="n">t_id</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">flat_input_ids</span><span class="p">):</span>
+          <span class="k">continue</span>  <span class="c1"># Node is not computable, try skipping.</span>
+
+        <span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">map_arguments</span><span class="p">(</span><span class="n">tensor_dict</span><span class="p">)</span>
+        <span class="n">outputs</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">layer</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="c1"># Update tensor_dict.</span>
+        <span class="k">for</span> <span class="n">x_id</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">flat_output_ids</span><span class="p">,</span> <span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">outputs</span><span class="p">)):</span>
+          <span class="n">tensor_dict</span><span class="p">[</span><span class="n">x_id</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">y</span><span class="p">]</span> <span class="o">*</span> <span class="n">tensor_usage_count</span><span class="p">[</span><span class="n">x_id</span><span class="p">]</span>
+
+    <span class="n">output_tensors</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span><span class="p">:</span>
+      <span class="n">x_id</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+      <span class="k">assert</span> <span class="n">x_id</span> <span class="ow">in</span> <span class="n">tensor_dict</span><span class="p">,</span> <span class="s1">&#39;Could not compute output &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+      <span class="n">output_tensors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tensor_dict</span><span class="p">[</span><span class="n">x_id</span><span class="p">]</span><span class="o">.</span><span class="n">pop</span><span class="p">())</span>
+
+    <span class="k">return</span> <span class="n">nest</span><span class="o">.</span><span class="n">pack_sequence_as</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nested_outputs</span><span class="p">,</span> <span class="n">output_tensors</span><span class="p">)</span>
+
+  <span class="k">def</span> <span class="nf">_flatten_to_reference_inputs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tensors</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Maps `tensors` to their respective `keras.Input`.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_enable_dict_to_input_mapping</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tensors</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+      <span class="n">ref_inputs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nested_inputs</span>
+      <span class="k">if</span> <span class="ow">not</span> <span class="n">nest</span><span class="o">.</span><span class="n">is_nested</span><span class="p">(</span><span class="n">ref_inputs</span><span class="p">):</span>
+        <span class="n">ref_inputs</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_nested_inputs</span><span class="p">]</span>
+      <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ref_inputs</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="c1"># In the case that the graph is constructed with dict input tensors,</span>
+        <span class="c1"># We will use the original dict key to map with the keys in the input</span>
+        <span class="c1"># data. Note that the model.inputs is using nest.flatten to process the</span>
+        <span class="c1"># input tensors, which means the dict input tensors are ordered by their</span>
+        <span class="c1"># keys.</span>
+        <span class="n">ref_input_names</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">ref_inputs</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+      <span class="k">else</span><span class="p">:</span>
+        <span class="n">ref_input_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">inp</span><span class="o">.</span><span class="n">_keras_history</span><span class="o">.</span><span class="n">layer</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">inp</span> <span class="ow">in</span> <span class="n">ref_inputs</span><span class="p">]</span>
+
+      <span class="c1"># Raise an warning if there are more input data comparing to input tensor</span>
+      <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tensors</span><span class="p">)</span> <span class="o">&gt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">ref_input_names</span><span class="p">):</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s1">&#39;Input dict contained keys </span><span class="si">{}</span><span class="s1"> which did not match any model input. &#39;</span>
+            <span class="s1">&#39;They will be ignored by the model.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="p">[</span><span class="n">n</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">tensors</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="k">if</span> <span class="n">n</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ref_input_names</span><span class="p">])</span>
+            <span class="p">)</span>
+
+      <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># Flatten in the order `Input`s were passed during Model construction.</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">tensors</span><span class="p">[</span><span class="n">n</span><span class="p">]</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">ref_input_names</span><span class="p">]</span>
+      <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+        <span class="c1"># TODO(b/151582614)</span>
+        <span class="k">return</span> <span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">tensors</span><span class="p">)</span>
+
+    <span class="c1"># Otherwise both self.inputs and tensors will already be in same order.</span>
+    <span class="k">return</span> <span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">tensors</span><span class="p">)</span>
+
+  <span class="k">def</span> <span class="nf">_conform_to_reference_input</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tensor</span><span class="p">,</span> <span class="n">ref_input</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Set shape and dtype based on `keras.Input`s.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tensor</span><span class="p">,</span> <span class="n">ops</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+      <span class="c1"># Allow (None,) and (None, 1) Tensors to be passed interchangably. Use the</span>
+      <span class="c1"># shape specified by the `keras.Input`.</span>
+      <span class="n">t_shape</span> <span class="o">=</span> <span class="n">tensor</span><span class="o">.</span><span class="n">shape</span>
+      <span class="n">t_rank</span> <span class="o">=</span> <span class="n">t_shape</span><span class="o">.</span><span class="n">rank</span>
+      <span class="n">ref_shape</span> <span class="o">=</span> <span class="n">ref_input</span><span class="o">.</span><span class="n">shape</span>
+      <span class="n">ref_rank</span> <span class="o">=</span> <span class="n">ref_shape</span><span class="o">.</span><span class="n">rank</span>
+      <span class="n">keras_history</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">tensor</span><span class="p">,</span> <span class="s1">&#39;_keras_history&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+      <span class="k">if</span> <span class="n">t_rank</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">ref_rank</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># Should squeeze last dimension.</span>
+        <span class="c1"># True if tensor is (BATCH, ..., 1) and reference is (BATCH, ...).</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">t_rank</span> <span class="o">==</span> <span class="n">ref_rank</span> <span class="o">+</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">t_shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">):</span>
+          <span class="n">tensor</span> <span class="o">=</span> <span class="n">array_ops</span><span class="o">.</span><span class="n">squeeze_v2</span><span class="p">(</span><span class="n">tensor</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="c1"># Should expand last_dimension.</span>
+        <span class="c1"># True if tensor is (BATCH, ...) and reference is (BATCH, ..., 1).</span>
+        <span class="k">elif</span> <span class="p">(</span><span class="n">t_rank</span> <span class="o">==</span> <span class="n">ref_rank</span> <span class="o">-</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">ref_shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">):</span>
+          <span class="n">tensor</span> <span class="o">=</span> <span class="n">array_ops</span><span class="o">.</span><span class="n">expand_dims_v2</span><span class="p">(</span><span class="n">tensor</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+      <span class="k">if</span> <span class="n">keras_history</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># Restore keras history.</span>
+        <span class="n">tensor</span><span class="o">.</span><span class="n">_keras_history</span> <span class="o">=</span> <span class="n">keras_history</span>
+
+      <span class="c1"># Add shape hints to Tensors that may have None shape dims but have shapes</span>
+      <span class="c1"># defined by the `keras.Input` (not applicable in eager mode).</span>
+      <span class="k">if</span> <span class="ow">not</span> <span class="n">context</span><span class="o">.</span><span class="n">executing_eagerly</span><span class="p">():</span>
+        <span class="k">try</span><span class="p">:</span>
+          <span class="n">tensor</span><span class="o">.</span><span class="n">set_shape</span><span class="p">(</span><span class="n">tensor</span><span class="o">.</span><span class="n">shape</span><span class="o">.</span><span class="n">merge_with</span><span class="p">(</span><span class="n">ref_input</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+          <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+              <span class="s1">&#39;Model was constructed with shape </span><span class="si">{}</span><span class="s1"> for input </span><span class="si">{}</span><span class="s1">, but it was &#39;</span>
+              <span class="s1">&#39;called on an input with incompatible shape </span><span class="si">{}</span><span class="s1">.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                  <span class="n">ref_input</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">ref_input</span><span class="p">,</span> <span class="n">tensor</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
+
+      <span class="c1"># Dtype casting.</span>
+      <span class="n">tensor</span> <span class="o">=</span> <span class="n">math_ops</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">tensor</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">ref_input</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">tf_utils</span><span class="o">.</span><span class="n">is_extension_type</span><span class="p">(</span><span class="n">tensor</span><span class="p">):</span>
+      <span class="c1"># Dtype casting.</span>
+      <span class="n">tensor</span> <span class="o">=</span> <span class="n">math_ops</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">tensor</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">ref_input</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">tensor</span>
+
+  <span class="k">def</span> <span class="nf">get_config</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">get_network_config</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
+
+  <span class="nd">@classmethod</span>
+  <span class="k">def</span> <span class="nf">from_config</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">custom_objects</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Instantiates a Model from its config (output of `get_config()`).</span>
+
+<span class="sd">    Arguments:</span>
+<span class="sd">        config: Model config dictionary.</span>
+<span class="sd">        custom_objects: Optional dictionary mapping names</span>
+<span class="sd">            (strings) to custom classes or functions to be</span>
+<span class="sd">            considered during deserialization.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A model instance.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: In case of improperly formatted config dict.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">input_tensors</span><span class="p">,</span> <span class="n">output_tensors</span><span class="p">,</span> <span class="n">created_layers</span> <span class="o">=</span> <span class="n">reconstruct_from_config</span><span class="p">(</span>
+        <span class="n">config</span><span class="p">,</span> <span class="n">custom_objects</span><span class="p">)</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">(</span><span class="n">inputs</span><span class="o">=</span><span class="n">input_tensors</span><span class="p">,</span> <span class="n">outputs</span><span class="o">=</span><span class="n">output_tensors</span><span class="p">,</span>
+                <span class="n">name</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">))</span>
+    <span class="n">connect_ancillary_layers</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">created_layers</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">model</span>
+
+  <span class="k">def</span> <span class="nf">_validate_graph_inputs_and_outputs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Validates the inputs and outputs of a Graph Network.&quot;&quot;&quot;</span>
+    <span class="c1"># Check for redundancy in inputs.</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">({</span><span class="nb">id</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="p">})</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="p">):</span>
+      <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The list of inputs passed to the model &#39;</span>
+                       <span class="s1">&#39;is redundant. &#39;</span>
+                       <span class="s1">&#39;All inputs should only appear once.&#39;</span>
+                       <span class="s1">&#39; Found: &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="p">))</span>
+
+    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="p">:</span>
+      <span class="c1"># Check that x has appropriate `_keras_history` metadata.</span>
+      <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="s1">&#39;_keras_history&#39;</span><span class="p">):</span>
+        <span class="n">cls_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Input tensors to a &#39;</span> <span class="o">+</span> <span class="n">cls_name</span> <span class="o">+</span> <span class="s1">&#39; &#39;</span> <span class="o">+</span>
+                         <span class="s1">&#39;must come from `tf.keras.Input`. &#39;</span>
+                         <span class="s1">&#39;Received: &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span>
+                         <span class="s1">&#39; (missing previous layer metadata).&#39;</span><span class="p">)</span>
+      <span class="c1"># Check that x is an input tensor.</span>
+      <span class="c1"># pylint: disable=protected-access</span>
+      <span class="n">layer</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">_keras_history</span><span class="o">.</span><span class="n">layer</span>
+      <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">_inbound_nodes</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="p">(</span>
+          <span class="n">layer</span><span class="o">.</span><span class="n">_inbound_nodes</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">layer</span><span class="o">.</span><span class="n">_inbound_nodes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">is_input</span><span class="p">):</span>
+        <span class="n">cls_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="n">cls_name</span> <span class="o">+</span> <span class="s1">&#39; model inputs must come from &#39;</span>
+                        <span class="s1">&#39;`tf.keras.Input` (thus holding past layer metadata), &#39;</span>
+                        <span class="s1">&#39;they cannot be the output of &#39;</span>
+                        <span class="s1">&#39;a previous non-Input layer. &#39;</span>
+                        <span class="s1">&#39;Here, a tensor specified as &#39;</span>
+                        <span class="s1">&#39;input to &quot;&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s1">&#39;&quot; was not an Input tensor, &#39;</span>
+                        <span class="s1">&#39;it was generated by layer &#39;</span> <span class="o">+</span> <span class="n">layer</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s1">&#39;.</span><span class="se">\n</span><span class="s1">&#39;</span>
+                        <span class="s1">&#39;Note that input tensors are &#39;</span>
+                        <span class="s1">&#39;instantiated via `tensor = tf.keras.Input(shape)`.</span><span class="se">\n</span><span class="s1">&#39;</span>
+                        <span class="s1">&#39;The tensor that caused the issue was: &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+
+    <span class="c1"># Check compatibility of batch sizes of Input Layers.</span>
+    <span class="n">input_batch_sizes</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">training_utils</span><span class="o">.</span><span class="n">get_static_batch_size</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">_keras_history</span><span class="o">.</span><span class="n">layer</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span>
+    <span class="p">]</span>
+    <span class="n">consistent_batch_size</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">for</span> <span class="n">batch_size</span> <span class="ow">in</span> <span class="n">input_batch_sizes</span><span class="p">:</span>
+      <span class="k">if</span> <span class="n">batch_size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">consistent_batch_size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span>
+            <span class="n">batch_size</span> <span class="o">!=</span> <span class="n">consistent_batch_size</span><span class="p">):</span>
+          <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The specified batch sizes of the Input Layers&#39;</span>
+                           <span class="s1">&#39; are incompatible. Found batch sizes: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                               <span class="n">input_batch_sizes</span><span class="p">))</span>
+        <span class="n">consistent_batch_size</span> <span class="o">=</span> <span class="n">batch_size</span>
+
+    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span><span class="p">:</span>
+      <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="s1">&#39;_keras_history&#39;</span><span class="p">):</span>
+        <span class="n">cls_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Output tensors of a &#39;</span> <span class="o">+</span> <span class="n">cls_name</span> <span class="o">+</span> <span class="s1">&#39; model must be &#39;</span>
+                         <span class="s1">&#39;the output of a TensorFlow `Layer` &#39;</span>
+                         <span class="s1">&#39;(thus holding past layer metadata). Found: &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+
+  <span class="k">def</span> <span class="nf">_insert_layers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">layers</span><span class="p">,</span> <span class="n">relevant_nodes</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Inserts Layers into the Network after Network creation.</span>
+
+<span class="sd">    This is only valid for Keras Graph Networks.  Layers added via this function</span>
+<span class="sd">    will be included in the `call` computation and `get_config` of this Network.</span>
+<span class="sd">    They will not be added to the Network&#39;s outputs.</span>
+
+
+<span class="sd">    Arguments:</span>
+<span class="sd">      layers: Arbitrary nested structure of Layers. Layers must be reachable</span>
+<span class="sd">        from one or more of the `keras.Input` Tensors that correspond to this</span>
+<span class="sd">        Network&#39;s inputs.</span>
+<span class="sd">      relevant_nodes: Nodes from the Layers that should be considered part of</span>
+<span class="sd">        this Network. If `None`, all Nodes will be considered part of this</span>
+<span class="sd">        Network.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">      ValueError: If the layers depend on `Input`s not found in this Model.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">layers</span> <span class="o">=</span> <span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">layers</span><span class="p">)</span>
+    <span class="n">tf_utils</span><span class="o">.</span><span class="n">assert_no_legacy_layers</span><span class="p">(</span><span class="n">layers</span><span class="p">)</span>
+    <span class="n">node_to_depth</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">depth</span><span class="p">,</span> <span class="n">nodes</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nodes_by_depth</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+      <span class="n">node_to_depth</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">node</span><span class="p">:</span> <span class="n">depth</span> <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">})</span>
+    <span class="c1"># The nodes of these Layers that are relevant to this Network. If not</span>
+    <span class="c1"># provided, assume all Nodes are relevant</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">relevant_nodes</span><span class="p">:</span>
+      <span class="n">relevant_nodes</span> <span class="o">=</span> <span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">([</span><span class="n">layer</span><span class="o">.</span><span class="n">_inbound_nodes</span> <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">layers</span><span class="p">])</span>
+    <span class="n">network_nodes</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">relevant_nodes</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">node_to_depth</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+
+    <span class="k">def</span> <span class="nf">_get_min_depth</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
+      <span class="sd">&quot;&quot;&quot;Gets the minimum depth at which node can be computed.&quot;&quot;&quot;</span>
+      <span class="n">min_depth</span> <span class="o">=</span> <span class="mi">0</span>
+      <span class="k">for</span> <span class="n">layer</span><span class="p">,</span> <span class="n">node_id</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">iterate_inbound</span><span class="p">():</span>
+        <span class="n">inbound_node</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">_inbound_nodes</span><span class="p">[</span><span class="n">node_id</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">inbound_node</span> <span class="ow">in</span> <span class="n">node_to_depth</span><span class="p">:</span>
+          <span class="n">min_depth</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">min_depth</span><span class="p">,</span> <span class="n">node_to_depth</span><span class="p">[</span><span class="n">inbound_node</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="n">inbound_node</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">network_nodes</span><span class="p">:</span>
+          <span class="k">continue</span>
+        <span class="k">else</span><span class="p">:</span>
+          <span class="c1"># Previous relevant nodes haven&#39;t been processed yet.</span>
+          <span class="k">return</span> <span class="kc">None</span>
+      <span class="c1"># New node is one shallower than its shallowest input.</span>
+      <span class="k">return</span> <span class="n">min_depth</span> <span class="o">-</span> <span class="mi">1</span>
+
+    <span class="c1"># Insert nodes into `_nodes_by_depth` and other node attrs.</span>
+    <span class="n">unprocessed_nodes</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">relevant_nodes</span><span class="p">)</span>
+    <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="n">unprocessed_nodes</span><span class="p">:</span>
+      <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+      <span class="c1"># Do a sanity check. This can occur if `Input`s from outside this Model</span>
+      <span class="c1"># are being relied on.</span>
+      <span class="k">if</span> <span class="n">i</span> <span class="o">&gt;</span> <span class="mi">10000</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Layers could not be added due to missing &#39;</span>
+                         <span class="s1">&#39;dependencies.&#39;</span><span class="p">)</span>
+
+      <span class="n">node</span> <span class="o">=</span> <span class="n">unprocessed_nodes</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+      <span class="n">depth</span> <span class="o">=</span> <span class="n">_get_min_depth</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+      <span class="k">if</span> <span class="n">depth</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># Defer until inbound nodes are processed.</span>
+        <span class="n">unprocessed_nodes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">continue</span>
+      <span class="n">node_key</span> <span class="o">=</span> <span class="n">_make_node_key</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">layer</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                                <span class="n">node</span><span class="o">.</span><span class="n">layer</span><span class="o">.</span><span class="n">_inbound_nodes</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">node</span><span class="p">))</span>
+      <span class="k">if</span> <span class="n">node_key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_network_nodes</span><span class="p">:</span>
+        <span class="n">node_to_depth</span><span class="p">[</span><span class="n">node</span><span class="p">]</span> <span class="o">=</span> <span class="n">depth</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_network_nodes</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">node_key</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_nodes_by_depth</span><span class="p">[</span><span class="n">depth</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+
+    <span class="c1"># Insert layers and update other layer attrs.</span>
+    <span class="n">layer_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_layers</span><span class="p">)</span>
+    <span class="n">deferred_layers</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">layers</span><span class="p">:</span>
+      <span class="k">if</span> <span class="n">layer</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">layer_set</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layer</span><span class="p">)</span>
+        <span class="n">deferred_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layer</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_layer_call_argspecs</span><span class="p">[</span><span class="n">layer</span><span class="p">]</span> <span class="o">=</span> <span class="n">tf_inspect</span><span class="o">.</span><span class="n">getfullargspec</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">call</span><span class="p">)</span>
+        <span class="n">layer_set</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">layer</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_handle_deferred_layer_dependencies</span><span class="p">(</span><span class="n">deferred_layers</span><span class="p">)</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">_compute_tensor_usage_count</span><span class="p">()</span>
+
+  <span class="k">def</span> <span class="nf">_compute_tensor_usage_count</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Compute the #. of tensor usages for all the output tensors of layers.</span>
+
+<span class="sd">    The computed tensor usage count is saved as `self._tensor_usage_count`. This</span>
+<span class="sd">    is later used for saving memory in eager computation by releasing</span>
+<span class="sd">    no-longer-needed tensors as early as possible.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">tensor_usage_count</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">Counter</span><span class="p">()</span>
+    <span class="n">available_tensors</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">tensor</span><span class="p">))</span> <span class="k">for</span> <span class="n">tensor</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="p">)</span>
+
+    <span class="n">depth_keys</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nodes_by_depth</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+    <span class="n">depth_keys</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">depth_keys</span> <span class="o">=</span> <span class="n">depth_keys</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+
+    <span class="k">for</span> <span class="n">depth</span> <span class="ow">in</span> <span class="n">depth_keys</span><span class="p">:</span>
+      <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nodes_by_depth</span><span class="p">[</span><span class="n">depth</span><span class="p">]:</span>
+        <span class="n">input_tensors</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="nb">str</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">tensor</span><span class="p">))</span> <span class="k">for</span> <span class="n">tensor</span> <span class="ow">in</span> <span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">keras_inputs</span><span class="p">)</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="n">input_tensors</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="n">available_tensors</span><span class="p">):</span>
+          <span class="k">for</span> <span class="n">tensor</span> <span class="ow">in</span> <span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">keras_inputs</span><span class="p">):</span>
+            <span class="n">tensor_usage_count</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">tensor</span><span class="p">))]</span> <span class="o">+=</span> <span class="mi">1</span>
+
+          <span class="k">for</span> <span class="n">output_tensor</span> <span class="ow">in</span> <span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">outputs</span><span class="p">):</span>
+            <span class="n">available_tensors</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">output_tensor</span><span class="p">)))</span>
+
+    <span class="k">for</span> <span class="n">tensor</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span><span class="p">:</span>
+      <span class="n">tensor_usage_count</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">tensor</span><span class="p">))]</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">_tensor_usage_count</span> <span class="o">=</span> <span class="n">tensor_usage_count</span>
+
+  <span class="k">def</span> <span class="nf">_assert_weights_created</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="c1"># Override the implementation in Model.</span>
+    <span class="c1"># The Functional model should always have weight created already.</span>
+    <span class="k">return</span>
+
+  <span class="k">def</span> <span class="nf">_graph_network_add_loss</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">symbolic_loss</span><span class="p">):</span>
+    <span class="n">new_nodes</span><span class="p">,</span> <span class="n">new_layers</span> <span class="o">=</span> <span class="n">_map_subgraph_network</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="p">,</span> <span class="p">[</span><span class="n">symbolic_loss</span><span class="p">])</span>
+    <span class="c1"># Losses must be keyed on inputs no matter what in order to be supported in</span>
+    <span class="c1"># DistributionStrategy.</span>
+    <span class="n">add_loss_layer</span> <span class="o">=</span> <span class="n">base_layer</span><span class="o">.</span><span class="n">AddLoss</span><span class="p">(</span>
+        <span class="n">unconditional</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">symbolic_loss</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+    <span class="n">add_loss_layer</span><span class="p">(</span><span class="n">symbolic_loss</span><span class="p">)</span>
+    <span class="n">new_nodes</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">add_loss_layer</span><span class="o">.</span><span class="n">inbound_nodes</span><span class="p">)</span>
+    <span class="n">new_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">add_loss_layer</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_insert_layers</span><span class="p">(</span><span class="n">new_layers</span><span class="p">,</span> <span class="n">new_nodes</span><span class="p">)</span>
+
+  <span class="k">def</span> <span class="nf">_graph_network_add_metric</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">aggregation</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+    <span class="n">new_nodes</span><span class="p">,</span> <span class="n">new_layers</span> <span class="o">=</span> <span class="n">_map_subgraph_network</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="p">,</span> <span class="p">[</span><span class="n">value</span><span class="p">])</span>
+    <span class="n">add_metric_layer</span> <span class="o">=</span> <span class="n">base_layer</span><span class="o">.</span><span class="n">AddMetric</span><span class="p">(</span>
+        <span class="n">aggregation</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">value</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+    <span class="n">add_metric_layer</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="n">new_nodes</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">add_metric_layer</span><span class="o">.</span><span class="n">inbound_nodes</span><span class="p">)</span>
+    <span class="n">new_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">add_metric_layer</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_insert_layers</span><span class="p">(</span><span class="n">new_layers</span><span class="p">,</span> <span class="n">new_nodes</span><span class="p">)</span>
+
+  <span class="nd">@property</span>
+  <span class="k">def</span> <span class="nf">_trackable_saved_model_saver</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">network_serialization</span><span class="o">.</span><span class="n">NetworkSavedModelSaver</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+  <span class="k">def</span> <span class="nf">_get_save_spec</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dynamic_batch</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;_has_explicit_input_shape&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">):</span>
+      <span class="c1"># Functional models and Sequential models that have an explicit input</span>
+      <span class="c1"># shape should use the batch size set by the input layer.</span>
+      <span class="n">dynamic_batch</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Functional</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_get_save_spec</span><span class="p">(</span><span class="n">dynamic_batch</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_make_node_key</span><span class="p">(</span><span class="n">layer_name</span><span class="p">,</span> <span class="n">node_index</span><span class="p">):</span>
+  <span class="k">return</span> <span class="n">layer_name</span> <span class="o">+</span> <span class="s1">&#39;_ib-&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">node_index</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_map_graph_network</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">outputs</span><span class="p">):</span>
+  <span class="sd">&quot;&quot;&quot;Validates a network&#39;s topology and gather its layers and nodes.</span>
+
+<span class="sd">  Arguments:</span>
+<span class="sd">    inputs: List of input tensors.</span>
+<span class="sd">    outputs: List of outputs tensors.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    A tuple `(nodes, nodes_by_depth, layers, layers_by_depth)`.</span>
+<span class="sd">    - nodes: list of Node instances.</span>
+<span class="sd">    - nodes_by_depth: dict mapping ints (depth) to lists of node instances.</span>
+<span class="sd">    - layers: list of Layer instances.</span>
+<span class="sd">    - layers_by_depth: dict mapping ints (depth) to lists of layer instances.</span>
+
+<span class="sd">  Raises:</span>
+<span class="sd">    ValueError: In case the network is not valid (e.g. disconnected graph).</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="c1"># &quot;depth&quot; is number of layers between output Node and the Node.</span>
+  <span class="c1"># Nodes are ordered from inputs -&gt; outputs.</span>
+  <span class="n">nodes_in_decreasing_depth</span><span class="p">,</span> <span class="n">layer_indices</span> <span class="o">=</span> <span class="n">_build_map</span><span class="p">(</span><span class="n">outputs</span><span class="p">)</span>
+  <span class="n">network_nodes</span> <span class="o">=</span> <span class="p">{</span>
+      <span class="n">_make_node_key</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">layer</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">node</span><span class="o">.</span><span class="n">layer</span><span class="o">.</span><span class="n">_inbound_nodes</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">node</span><span class="p">))</span>
+      <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">nodes_in_decreasing_depth</span>
+  <span class="p">}</span>
+
+  <span class="n">nodes_depths</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># dict {node: depth value}</span>
+  <span class="n">layers_depths</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># dict {layer: depth value}</span>
+
+  <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">nodes_in_decreasing_depth</span><span class="p">):</span>
+    <span class="c1"># If the depth is not set, the node has no outbound nodes (depth 0).</span>
+    <span class="n">depth</span> <span class="o">=</span> <span class="n">nodes_depths</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+    <span class="c1"># Update the depth of the corresponding layer</span>
+    <span class="n">previous_depth</span> <span class="o">=</span> <span class="n">layers_depths</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">layer</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="c1"># If we&#39;ve seen this layer before at a higher depth,</span>
+    <span class="c1"># we should use that depth instead of the node depth.</span>
+    <span class="c1"># This is necessary for shared layers that have inputs at different</span>
+    <span class="c1"># depth levels in the graph.</span>
+    <span class="n">depth</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">depth</span><span class="p">,</span> <span class="n">previous_depth</span><span class="p">)</span>
+    <span class="n">layers_depths</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">layer</span><span class="p">]</span> <span class="o">=</span> <span class="n">depth</span>
+    <span class="n">nodes_depths</span><span class="p">[</span><span class="n">node</span><span class="p">]</span> <span class="o">=</span> <span class="n">depth</span>
+
+    <span class="c1"># Update the depth of inbound nodes.</span>
+    <span class="c1"># The &quot;depth&quot; of a node is the max of the depths</span>
+    <span class="c1"># of all nodes it is connected to + 1.</span>
+    <span class="k">for</span> <span class="n">node_dep</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">parent_nodes</span><span class="p">:</span>
+      <span class="n">previous_depth</span> <span class="o">=</span> <span class="n">nodes_depths</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">node_dep</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+      <span class="n">nodes_depths</span><span class="p">[</span><span class="n">node_dep</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">depth</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">previous_depth</span><span class="p">)</span>
+
+  <span class="c1"># Handle inputs that are not connected to outputs.</span>
+  <span class="c1"># We do not error out here because the inputs may be used to compute losses</span>
+  <span class="c1"># and metrics.</span>
+  <span class="k">for</span> <span class="n">input_t</span> <span class="ow">in</span> <span class="n">inputs</span><span class="p">:</span>
+    <span class="n">input_layer</span> <span class="o">=</span> <span class="n">input_t</span><span class="o">.</span><span class="n">_keras_history</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">input_layer</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">layers_depths</span><span class="p">:</span>
+      <span class="n">layers_depths</span><span class="p">[</span><span class="n">input_layer</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+      <span class="n">layer_indices</span><span class="p">[</span><span class="n">input_layer</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+      <span class="n">nodes_depths</span><span class="p">[</span><span class="n">input_layer</span><span class="o">.</span><span class="n">_inbound_nodes</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">=</span> <span class="mi">0</span>
+      <span class="n">network_nodes</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">_make_node_key</span><span class="p">(</span><span class="n">input_layer</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+
+  <span class="c1"># Build a dict {depth: list of nodes with this depth}</span>
+  <span class="n">nodes_by_depth</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+  <span class="k">for</span> <span class="n">node</span><span class="p">,</span> <span class="n">depth</span> <span class="ow">in</span> <span class="n">nodes_depths</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="n">nodes_by_depth</span><span class="p">[</span><span class="n">depth</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+
+  <span class="c1"># Build a dict {depth: list of layers with this depth}</span>
+  <span class="n">layers_by_depth</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+  <span class="k">for</span> <span class="n">layer</span><span class="p">,</span> <span class="n">depth</span> <span class="ow">in</span> <span class="n">layers_depths</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="n">layers_by_depth</span><span class="p">[</span><span class="n">depth</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layer</span><span class="p">)</span>
+
+  <span class="c1"># Get sorted list of layer depths.</span>
+  <span class="n">depth_keys</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">layers_by_depth</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+  <span class="n">depth_keys</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+  <span class="c1"># Set self.layers ordered by depth.</span>
+  <span class="n">layers</span> <span class="o">=</span> <span class="p">[]</span>
+  <span class="k">for</span> <span class="n">depth</span> <span class="ow">in</span> <span class="n">depth_keys</span><span class="p">:</span>
+    <span class="n">layers_for_depth</span> <span class="o">=</span> <span class="n">layers_by_depth</span><span class="p">[</span><span class="n">depth</span><span class="p">]</span>
+    <span class="c1"># Network.layers needs to have a deterministic order:</span>
+    <span class="c1"># here we order them by traversal order.</span>
+    <span class="n">layers_for_depth</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">layer_indices</span><span class="p">[</span><span class="n">x</span><span class="p">])</span>
+    <span class="n">layers</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">layers_for_depth</span><span class="p">)</span>
+
+  <span class="c1"># Get sorted list of node depths.</span>
+  <span class="n">depth_keys</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">nodes_by_depth</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+  <span class="n">depth_keys</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+  <span class="c1"># Check that all tensors required are computable.</span>
+  <span class="c1"># computable_tensors: all tensors in the graph</span>
+  <span class="c1"># that can be computed from the inputs provided.</span>
+  <span class="n">computable_tensors</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+  <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">inputs</span><span class="p">:</span>
+    <span class="n">computable_tensors</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+
+  <span class="n">layers_with_complete_input</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># To provide a better error msg.</span>
+  <span class="k">for</span> <span class="n">depth</span> <span class="ow">in</span> <span class="n">depth_keys</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">nodes_by_depth</span><span class="p">[</span><span class="n">depth</span><span class="p">]:</span>
+      <span class="n">layer</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">layer</span>
+      <span class="k">if</span> <span class="n">layer</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">node</span><span class="o">.</span><span class="n">is_input</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">keras_inputs</span><span class="p">):</span>
+          <span class="k">if</span> <span class="nb">id</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">computable_tensors</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Graph disconnected: &#39;</span>
+                             <span class="s1">&#39;cannot obtain value for tensor &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span>
+                             <span class="s1">&#39; at layer &quot;&#39;</span> <span class="o">+</span> <span class="n">layer</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s1">&#39;&quot;. &#39;</span>
+                             <span class="s1">&#39;The following previous layers &#39;</span>
+                             <span class="s1">&#39;were accessed without issue: &#39;</span> <span class="o">+</span>
+                             <span class="nb">str</span><span class="p">(</span><span class="n">layers_with_complete_input</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">outputs</span><span class="p">):</span>
+          <span class="n">computable_tensors</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+        <span class="n">layers_with_complete_input</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+  <span class="c1"># Ensure name unicity, which will be crucial for serialization</span>
+  <span class="c1"># (since serialized nodes refer to layers by their name).</span>
+  <span class="n">all_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">layer</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">layers</span><span class="p">]</span>
+  <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">all_names</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">all_names</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+      <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The name &quot;&#39;</span> <span class="o">+</span> <span class="n">name</span> <span class="o">+</span> <span class="s1">&#39;&quot; is used &#39;</span> <span class="o">+</span>
+                       <span class="nb">str</span><span class="p">(</span><span class="n">all_names</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="n">name</span><span class="p">))</span> <span class="o">+</span> <span class="s1">&#39; times in the model. &#39;</span>
+                       <span class="s1">&#39;All layer names should be unique.&#39;</span><span class="p">)</span>
+  <span class="k">return</span> <span class="n">network_nodes</span><span class="p">,</span> <span class="n">nodes_by_depth</span><span class="p">,</span> <span class="n">layers</span><span class="p">,</span> <span class="n">layers_by_depth</span>
+
+
+<span class="k">def</span> <span class="nf">_build_map</span><span class="p">(</span><span class="n">outputs</span><span class="p">):</span>
+  <span class="sd">&quot;&quot;&quot;This method topologically sorts nodes in order from inputs to outputs.</span>
+
+<span class="sd">  It uses a depth-first search to topologically sort nodes that appear in the</span>
+<span class="sd">  _keras_history connectivity metadata of `outputs`.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    outputs: the output tensors whose _keras_history metadata should be walked.</span>
+<span class="sd">    This may be an arbitrary nested structure.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    A tuple like (ordered_nodes, layer_to_first_traversal_index)</span>
+<span class="sd">    ordered_nodes: list of nodes appearing in the keras history, topologically</span>
+<span class="sd">      sorted from original inputs to the `outputs`.</span>
+<span class="sd">      (If outputs have different sets of ancestors, the inputs to one output</span>
+<span class="sd">      may appear after a different output).</span>
+<span class="sd">    layer_to_first_traversal_index:</span>
+<span class="sd">      A dict mapping layer to the traversal index in the DFS where it is</span>
+<span class="sd">      seen. Note: if a layer is shared by several nodes, the dict will only</span>
+<span class="sd">      store the index corresponding to the *first* time the layer seen.</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="n">finished_nodes</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+  <span class="n">nodes_in_progress</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+  <span class="n">nodes_in_decreasing_depth</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># nodes from inputs -&gt; outputs.</span>
+  <span class="n">layer_indices</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># layer -&gt; in traversal order.</span>
+  <span class="k">for</span> <span class="n">output</span> <span class="ow">in</span> <span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">outputs</span><span class="p">):</span>
+    <span class="n">_build_map_helper</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">finished_nodes</span><span class="p">,</span> <span class="n">nodes_in_progress</span><span class="p">,</span>
+                      <span class="n">nodes_in_decreasing_depth</span><span class="p">,</span> <span class="n">layer_indices</span><span class="p">)</span>
+  <span class="k">return</span> <span class="n">nodes_in_decreasing_depth</span><span class="p">,</span> <span class="n">layer_indices</span>
+
+
+<span class="k">def</span> <span class="nf">_build_map_helper</span><span class="p">(</span><span class="n">tensor</span><span class="p">,</span> <span class="n">finished_nodes</span><span class="p">,</span> <span class="n">nodes_in_progress</span><span class="p">,</span>
+                      <span class="n">nodes_in_decreasing_depth</span><span class="p">,</span> <span class="n">layer_indices</span><span class="p">):</span>
+  <span class="sd">&quot;&quot;&quot;Recursive helper for `_build_map`.&quot;&quot;&quot;</span>
+  <span class="n">layer</span><span class="p">,</span> <span class="n">node_index</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">tensor</span><span class="o">.</span><span class="n">_keras_history</span>  <span class="c1"># pylint: disable=protected-access</span>
+  <span class="n">node</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">_inbound_nodes</span><span class="p">[</span><span class="n">node_index</span><span class="p">]</span>  <span class="c1"># pylint: disable=protected-access</span>
+
+  <span class="c1"># Don&#39;t repeat work for shared subgraphs</span>
+  <span class="k">if</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">finished_nodes</span><span class="p">:</span>
+    <span class="k">return</span>
+
+  <span class="c1"># Prevent cycles.</span>
+  <span class="k">if</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">nodes_in_progress</span><span class="p">:</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The tensor &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">tensor</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39; at layer &quot;&#39;</span> <span class="o">+</span> <span class="n">layer</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span>
+                     <span class="s1">&#39;&quot; is part of a cycle.&#39;</span><span class="p">)</span>
+
+  <span class="c1"># Store the traversal order for layer sorting.</span>
+  <span class="k">if</span> <span class="n">layer</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">layer_indices</span><span class="p">:</span>
+    <span class="n">layer_indices</span><span class="p">[</span><span class="n">layer</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">layer_indices</span><span class="p">)</span>
+
+  <span class="c1"># Propagate to all previous tensors connected to this node.</span>
+  <span class="n">nodes_in_progress</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+  <span class="k">if</span> <span class="ow">not</span> <span class="n">node</span><span class="o">.</span><span class="n">is_input</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">tensor</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">keras_inputs</span><span class="p">:</span>
+      <span class="n">_build_map_helper</span><span class="p">(</span><span class="n">tensor</span><span class="p">,</span> <span class="n">finished_nodes</span><span class="p">,</span> <span class="n">nodes_in_progress</span><span class="p">,</span>
+                        <span class="n">nodes_in_decreasing_depth</span><span class="p">,</span> <span class="n">layer_indices</span><span class="p">)</span>
+
+  <span class="n">finished_nodes</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+  <span class="n">nodes_in_progress</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+  <span class="n">nodes_in_decreasing_depth</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_map_subgraph_network</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">outputs</span><span class="p">):</span>
+  <span class="sd">&quot;&quot;&quot;Returns the nodes and layers in the topology from `inputs` to `outputs`.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    inputs: List of input tensors.</span>
+<span class="sd">    outputs: List of output tensors.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    A tuple of List{Node] and List[Layer].</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="ow">not</span> <span class="n">keras_tensor</span><span class="o">.</span><span class="n">keras_tensors_enabled</span><span class="p">():</span>
+    <span class="n">base_layer_utils</span><span class="o">.</span><span class="n">create_keras_history</span><span class="p">(</span><span class="n">outputs</span><span class="p">)</span>
+  <span class="c1"># Keep only nodes and layers in the topology between inputs and outputs.</span>
+  <span class="n">_</span><span class="p">,</span> <span class="n">nodes_by_depth</span><span class="p">,</span> <span class="n">layers</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">_map_graph_network</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">outputs</span><span class="p">)</span>
+  <span class="k">return</span> <span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">([</span><span class="n">nodes</span> <span class="k">for</span> <span class="n">nodes</span> <span class="ow">in</span> <span class="n">nodes_by_depth</span><span class="o">.</span><span class="n">values</span><span class="p">()]),</span> <span class="n">layers</span>
+
+
+<span class="k">def</span> <span class="nf">_should_skip_first_node</span><span class="p">(</span><span class="n">layer</span><span class="p">):</span>
+  <span class="sd">&quot;&quot;&quot;Returns True if the first layer node should not be saved or loaded.&quot;&quot;&quot;</span>
+  <span class="c1"># Networks that are constructed with an Input layer/shape start with a</span>
+  <span class="c1"># pre-existing node linking their input to output. This node is excluded from</span>
+  <span class="c1"># the network config.</span>
+  <span class="k">return</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">Functional</span><span class="p">)</span> <span class="ow">and</span>
+          <span class="c1"># Filter out Sequential models without an input shape.</span>
+          <span class="nb">isinstance</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">_layers</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">input_layer_module</span><span class="o">.</span><span class="n">InputLayer</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">connect_ancillary_layers</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">created_layers</span><span class="p">):</span>
+  <span class="sd">&quot;&quot;&quot;Adds layers that are not connected to the outputs to the model.&quot;&quot;&quot;</span>
+  <span class="c1"># Layers not connected to outputs, such as those added in `add_loss`.</span>
+  <span class="n">ancillary_layers</span> <span class="o">=</span> <span class="p">[</span>
+      <span class="n">layer</span> <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">created_layers</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">if</span> <span class="n">layer</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">layers</span>
+  <span class="p">]</span>
+  <span class="k">if</span> <span class="n">ancillary_layers</span><span class="p">:</span>
+    <span class="n">relevant_nodes</span> <span class="o">=</span> <span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">([</span>
+        <span class="n">layer</span><span class="o">.</span><span class="n">inbound_nodes</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+        <span class="k">if</span> <span class="n">_should_skip_first_node</span><span class="p">(</span><span class="n">layer</span><span class="p">)</span> <span class="k">else</span> <span class="n">layer</span><span class="o">.</span><span class="n">inbound_nodes</span>
+        <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">created_layers</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
+    <span class="p">])</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">_insert_layers</span><span class="p">(</span><span class="n">ancillary_layers</span><span class="p">,</span> <span class="n">relevant_nodes</span><span class="p">)</span>
+  <span class="k">return</span> <span class="n">model</span>
+
+
+<span class="k">def</span> <span class="nf">reconstruct_from_config</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">custom_objects</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">created_layers</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+  <span class="sd">&quot;&quot;&quot;Reconstructs graph from config object.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    config: Dictionary returned from Network.get_config()</span>
+<span class="sd">    custom_objects: Optional dictionary mapping names (strings) to custom</span>
+<span class="sd">      classes or functions to be considered during deserialization.</span>
+<span class="sd">    created_layers: Optional dictionary mapping names to Layer objects. Any</span>
+<span class="sd">      layer not in this dictionary will be be created and added to the dict.</span>
+<span class="sd">      This function will add new nodes to all layers (excluding InputLayers),</span>
+<span class="sd">      instead of re-using pre-existing nodes in the layers.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    Tuple of (input tensors, output tensors, dictionary of created layers)</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="c1"># Layer instances created during the graph reconstruction process.</span>
+  <span class="n">created_layers</span> <span class="o">=</span> <span class="n">created_layers</span> <span class="ow">or</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">()</span>
+
+  <span class="c1"># Maps input data (tuple of inbound layer name, node index) from the config</span>
+  <span class="c1"># to node indices in the newly generated model. The node indices may be</span>
+  <span class="c1"># different if the layers have already been called previously.</span>
+  <span class="n">node_index_map</span> <span class="o">=</span> <span class="p">{}</span>
+  <span class="n">node_count_by_layer</span> <span class="o">=</span> <span class="p">{}</span>
+
+  <span class="c1"># Dictionary mapping layer instances to</span>
+  <span class="c1"># node data that specifies a layer call.</span>
+  <span class="c1"># It acts as a queue that maintains any unprocessed</span>
+  <span class="c1"># layer call until it becomes possible to process it</span>
+  <span class="c1"># (i.e. until the input tensors to the call all exist).</span>
+  <span class="n">unprocessed_nodes</span> <span class="o">=</span> <span class="p">{}</span>
+
+  <span class="k">def</span> <span class="nf">add_unprocessed_node</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">node_data</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">layer</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">unprocessed_nodes</span><span class="p">:</span>
+      <span class="n">unprocessed_nodes</span><span class="p">[</span><span class="n">layer</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">node_data</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+      <span class="n">unprocessed_nodes</span><span class="p">[</span><span class="n">layer</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node_data</span><span class="p">)</span>
+
+  <span class="k">def</span> <span class="nf">get_node_index</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">config_node_index</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Returns node index in layer (might differ from config_node_index).&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">input_layer_module</span><span class="o">.</span><span class="n">InputLayer</span><span class="p">):</span>
+      <span class="k">return</span> <span class="mi">0</span>
+    <span class="k">return</span> <span class="n">node_index_map</span><span class="o">.</span><span class="n">get</span><span class="p">((</span><span class="n">layer</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">config_node_index</span><span class="p">),</span> <span class="kc">None</span><span class="p">)</span>
+
+  <span class="k">def</span> <span class="nf">_deserialize_keras_tensors</span><span class="p">(</span><span class="n">kwargs</span><span class="p">,</span> <span class="n">layer_map</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Deserializes Keras Tensors passed to `call`..&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_deserialize_keras_tensor</span><span class="p">(</span><span class="n">t</span><span class="p">):</span>
+      <span class="sd">&quot;&quot;&quot;Deserializes a single Keras Tensor passed to `call`.&quot;&quot;&quot;</span>
+      <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">tf_utils</span><span class="o">.</span><span class="n">ListWrapper</span><span class="p">):</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">as_list</span><span class="p">()</span>
+        <span class="n">layer_name</span> <span class="o">=</span> <span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">node_index</span> <span class="o">=</span> <span class="n">t</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">tensor_index</span> <span class="o">=</span> <span class="n">t</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+
+        <span class="n">layer</span> <span class="o">=</span> <span class="n">layer_map</span><span class="p">[</span><span class="n">layer_name</span><span class="p">]</span>
+        <span class="n">new_node_index</span> <span class="o">=</span> <span class="n">get_node_index</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">node_index</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">new_node_index</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+          <span class="c1"># The inbound node may not have been processed yet,</span>
+          <span class="c1"># (This can happen e.g. if it depends on a different set</span>
+          <span class="c1"># of inputs than those that have been processed already).</span>
+          <span class="c1"># raise an IndexError so that the current node puts itself</span>
+          <span class="c1"># back on the unprocessed queue.</span>
+          <span class="c1"># Caution: This may lead to infinite loops for malformed</span>
+          <span class="c1"># network configurations! (or when there is a bug in</span>
+          <span class="c1"># the network config loading code).</span>
+          <span class="k">raise</span> <span class="ne">IndexError</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">_inbound_nodes</span><span class="p">[</span><span class="n">new_node_index</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">outputs</span><span class="p">)[</span><span class="n">tensor_index</span><span class="p">]</span>
+      <span class="k">return</span> <span class="n">t</span>
+
+    <span class="n">kwargs</span> <span class="o">=</span> <span class="n">tf_utils</span><span class="o">.</span><span class="n">convert_inner_node_data</span><span class="p">(</span><span class="n">kwargs</span><span class="p">,</span> <span class="n">wrap</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">nest</span><span class="o">.</span><span class="n">map_structure</span><span class="p">(</span><span class="n">_deserialize_keras_tensor</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">)</span>
+
+  <span class="k">def</span> <span class="nf">process_node</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">node_data</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Deserialize a node.</span>
+
+<span class="sd">    Arguments:</span>
+<span class="sd">        layer: layer instance.</span>
+<span class="sd">        node_data: Nested structure of `ListWrapper`.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: In case of improperly formatted `node_data`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">input_tensors</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">input_data</span> <span class="ow">in</span> <span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">node_data</span><span class="p">):</span>
+      <span class="n">input_data</span> <span class="o">=</span> <span class="n">input_data</span><span class="o">.</span><span class="n">as_list</span><span class="p">()</span>
+      <span class="n">inbound_layer_name</span> <span class="o">=</span> <span class="n">input_data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+      <span class="n">inbound_node_index</span> <span class="o">=</span> <span class="n">input_data</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+      <span class="n">inbound_tensor_index</span> <span class="o">=</span> <span class="n">input_data</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+      <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">input_data</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="n">kwargs</span> <span class="o">=</span> <span class="p">{}</span>
+      <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">input_data</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+        <span class="n">kwargs</span> <span class="o">=</span> <span class="n">input_data</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
+        <span class="k">try</span><span class="p">:</span>
+          <span class="n">kwargs</span> <span class="o">=</span> <span class="n">_deserialize_keras_tensors</span><span class="p">(</span><span class="n">kwargs</span><span class="p">,</span> <span class="n">created_layers</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">IndexError</span><span class="p">:</span>
+          <span class="c1"># Happens if keras tensors in kwargs are still unprocessed</span>
+          <span class="n">add_unprocessed_node</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">node_data</span><span class="p">)</span>
+          <span class="k">return</span>
+      <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Improperly formatted model config.&#39;</span><span class="p">)</span>
+
+      <span class="k">if</span> <span class="n">inbound_layer_name</span> <span class="o">!=</span> <span class="n">node_module</span><span class="o">.</span><span class="n">_CONSTANT_VALUE</span><span class="p">:</span>
+        <span class="n">inbound_layer</span> <span class="o">=</span> <span class="n">created_layers</span><span class="p">[</span><span class="n">inbound_layer_name</span><span class="p">]</span>
+        <span class="n">inbound_node_index</span> <span class="o">=</span> <span class="n">get_node_index</span><span class="p">(</span><span class="n">inbound_layer</span><span class="p">,</span> <span class="n">inbound_node_index</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">inbound_node_index</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+          <span class="n">add_unprocessed_node</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">node_data</span><span class="p">)</span>
+          <span class="k">return</span>
+        <span class="n">inbound_node</span> <span class="o">=</span> <span class="n">inbound_layer</span><span class="o">.</span><span class="n">_inbound_nodes</span><span class="p">[</span><span class="n">inbound_node_index</span><span class="p">]</span>
+        <span class="n">input_tensors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">inbound_node</span><span class="o">.</span><span class="n">outputs</span><span class="p">)[</span><span class="n">inbound_tensor_index</span><span class="p">])</span>
+      <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># We received a constant w/ no Keras history attached</span>
+        <span class="n">input_tensors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">inbound_tensor_index</span><span class="p">)</span>
+    <span class="n">input_tensors</span> <span class="o">=</span> <span class="n">nest</span><span class="o">.</span><span class="n">pack_sequence_as</span><span class="p">(</span><span class="n">node_data</span><span class="p">,</span> <span class="n">input_tensors</span><span class="p">)</span>
+    <span class="c1"># Call layer on its inputs, thus creating the node</span>
+    <span class="c1"># and building the layer if needed.</span>
+    <span class="k">if</span> <span class="n">input_tensors</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+      <span class="k">if</span> <span class="ow">not</span> <span class="n">layer</span><span class="o">.</span><span class="n">_preserve_input_structure_in_config</span><span class="p">:</span>
+        <span class="n">input_tensors</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">base_layer_utils</span><span class="o">.</span><span class="n">unnest_if_single_tensor</span><span class="p">(</span><span class="n">input_tensors</span><span class="p">))</span>
+      <span class="n">output_tensors</span> <span class="o">=</span> <span class="n">layer</span><span class="p">(</span><span class="n">input_tensors</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+      <span class="c1"># Update node index map.</span>
+      <span class="n">output_index</span> <span class="o">=</span> <span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">output_tensors</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">_keras_history</span><span class="o">.</span><span class="n">node_index</span>
+      <span class="n">node_index_map</span><span class="p">[(</span><span class="n">layer</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">node_count_by_layer</span><span class="p">[</span><span class="n">layer</span><span class="p">])]</span> <span class="o">=</span> <span class="n">output_index</span>
+      <span class="n">node_count_by_layer</span><span class="p">[</span><span class="n">layer</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+
+  <span class="k">def</span> <span class="nf">process_layer</span><span class="p">(</span><span class="n">layer_data</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Deserializes a layer, then call it on appropriate inputs.</span>
+
+<span class="sd">    Arguments:</span>
+<span class="sd">        layer_data: layer config dict.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: In case of improperly formatted `layer_data` dict.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">layer_name</span> <span class="o">=</span> <span class="n">layer_data</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">layer_name</span> <span class="ow">in</span> <span class="n">created_layers</span><span class="p">:</span>
+      <span class="n">layer</span> <span class="o">=</span> <span class="n">created_layers</span><span class="p">[</span><span class="n">layer_name</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+      <span class="c1"># Instantiate layer.</span>
+      <span class="kn">from</span> <span class="nn">tensorflow.python.keras.layers</span> <span class="kn">import</span> <span class="n">deserialize</span> <span class="k">as</span> <span class="n">deserialize_layer</span>  <span class="c1"># pylint: disable=g-import-not-at-top</span>
+
+      <span class="n">layer</span> <span class="o">=</span> <span class="n">deserialize_layer</span><span class="p">(</span><span class="n">layer_data</span><span class="p">,</span> <span class="n">custom_objects</span><span class="o">=</span><span class="n">custom_objects</span><span class="p">)</span>
+      <span class="n">created_layers</span><span class="p">[</span><span class="n">layer_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">layer</span>
+
+    <span class="n">node_count_by_layer</span><span class="p">[</span><span class="n">layer</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">_should_skip_first_node</span><span class="p">(</span><span class="n">layer</span><span class="p">))</span>
+
+    <span class="c1"># Gather layer inputs and convert to `ListWrapper` objects.</span>
+    <span class="n">inbound_nodes_data</span> <span class="o">=</span> <span class="n">layer_data</span><span class="p">[</span><span class="s1">&#39;inbound_nodes&#39;</span><span class="p">]</span>
+    <span class="n">inbound_nodes_data</span> <span class="o">=</span> <span class="n">tf_utils</span><span class="o">.</span><span class="n">convert_inner_node_data</span><span class="p">(</span>
+        <span class="n">inbound_nodes_data</span><span class="p">,</span> <span class="n">wrap</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">node_data</span> <span class="ow">in</span> <span class="n">inbound_nodes_data</span><span class="p">:</span>
+      <span class="c1"># We don&#39;t process nodes (i.e. make layer calls)</span>
+      <span class="c1"># on the fly because the inbound node may not yet exist,</span>
+      <span class="c1"># in case of layer shared at different topological depths</span>
+      <span class="c1"># (e.g. a model such as A(B(A(B(x)))))</span>
+      <span class="n">add_unprocessed_node</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">node_data</span><span class="p">)</span>
+
+  <span class="c1"># First, we create all layers and enqueue nodes to be processed</span>
+  <span class="k">for</span> <span class="n">layer_data</span> <span class="ow">in</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;layers&#39;</span><span class="p">]:</span>
+    <span class="n">process_layer</span><span class="p">(</span><span class="n">layer_data</span><span class="p">)</span>
+  <span class="c1"># Then we process nodes in order of layer depth.</span>
+  <span class="c1"># Nodes that cannot yet be processed (if the inbound node</span>
+  <span class="c1"># does not yet exist) are re-enqueued, and the process</span>
+  <span class="c1"># is repeated until all nodes are processed.</span>
+  <span class="k">while</span> <span class="n">unprocessed_nodes</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">layer_data</span> <span class="ow">in</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;layers&#39;</span><span class="p">]:</span>
+      <span class="n">layer</span> <span class="o">=</span> <span class="n">created_layers</span><span class="p">[</span><span class="n">layer_data</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]]</span>
+      <span class="k">if</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">unprocessed_nodes</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">node_data</span> <span class="ow">in</span> <span class="n">unprocessed_nodes</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">layer</span><span class="p">):</span>
+          <span class="n">process_node</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">node_data</span><span class="p">)</span>
+
+  <span class="n">input_tensors</span> <span class="o">=</span> <span class="p">[]</span>
+  <span class="n">output_tensors</span> <span class="o">=</span> <span class="p">[]</span>
+
+  <span class="n">input_layers</span> <span class="o">=</span> <span class="n">tf_utils</span><span class="o">.</span><span class="n">convert_inner_node_data</span><span class="p">(</span>
+      <span class="n">config</span><span class="p">[</span><span class="s1">&#39;input_layers&#39;</span><span class="p">],</span> <span class="n">wrap</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="k">for</span> <span class="n">layer_data</span> <span class="ow">in</span> <span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">input_layers</span><span class="p">):</span>
+    <span class="n">layer_name</span><span class="p">,</span> <span class="n">node_index</span><span class="p">,</span> <span class="n">tensor_index</span> <span class="o">=</span> <span class="n">layer_data</span><span class="o">.</span><span class="n">as_list</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">layer_name</span> <span class="ow">in</span> <span class="n">created_layers</span>
+    <span class="n">layer</span> <span class="o">=</span> <span class="n">created_layers</span><span class="p">[</span><span class="n">layer_name</span><span class="p">]</span>
+    <span class="n">node_index</span> <span class="o">=</span> <span class="n">get_node_index</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">node_index</span><span class="p">)</span>
+    <span class="n">layer_output_tensors</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">_inbound_nodes</span><span class="p">[</span><span class="n">node_index</span><span class="p">]</span><span class="o">.</span><span class="n">output_tensors</span>
+    <span class="n">input_tensors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">layer_output_tensors</span><span class="p">)[</span><span class="n">tensor_index</span><span class="p">])</span>
+
+  <span class="n">output_layers</span> <span class="o">=</span> <span class="n">tf_utils</span><span class="o">.</span><span class="n">convert_inner_node_data</span><span class="p">(</span>
+      <span class="n">config</span><span class="p">[</span><span class="s1">&#39;output_layers&#39;</span><span class="p">],</span> <span class="n">wrap</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="k">for</span> <span class="n">layer_data</span> <span class="ow">in</span> <span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">output_layers</span><span class="p">):</span>
+    <span class="n">layer_name</span><span class="p">,</span> <span class="n">node_index</span><span class="p">,</span> <span class="n">tensor_index</span> <span class="o">=</span> <span class="n">layer_data</span><span class="o">.</span><span class="n">as_list</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">layer_name</span> <span class="ow">in</span> <span class="n">created_layers</span>
+    <span class="n">layer</span> <span class="o">=</span> <span class="n">created_layers</span><span class="p">[</span><span class="n">layer_name</span><span class="p">]</span>
+    <span class="n">node_index</span> <span class="o">=</span> <span class="n">get_node_index</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">node_index</span><span class="p">)</span>
+    <span class="n">layer_output_tensors</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">_inbound_nodes</span><span class="p">[</span><span class="n">node_index</span><span class="p">]</span><span class="o">.</span><span class="n">output_tensors</span>
+    <span class="n">output_tensors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nest</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">layer_output_tensors</span><span class="p">)[</span><span class="n">tensor_index</span><span class="p">])</span>
+
+  <span class="n">input_tensors</span> <span class="o">=</span> <span class="n">nest</span><span class="o">.</span><span class="n">pack_sequence_as</span><span class="p">(</span><span class="n">input_layers</span><span class="p">,</span> <span class="n">input_tensors</span><span class="p">)</span>
+  <span class="n">output_tensors</span> <span class="o">=</span> <span class="n">nest</span><span class="o">.</span><span class="n">pack_sequence_as</span><span class="p">(</span><span class="n">output_layers</span><span class="p">,</span> <span class="n">output_tensors</span><span class="p">)</span>
+  <span class="k">return</span> <span class="n">input_tensors</span><span class="p">,</span> <span class="n">output_tensors</span><span class="p">,</span> <span class="n">created_layers</span>
+
+
+<span class="k">def</span> <span class="nf">get_network_config</span><span class="p">(</span><span class="n">network</span><span class="p">,</span> <span class="n">serialize_layer_fn</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+  <span class="sd">&quot;&quot;&quot;Builds the config, which consists of the node graph and serialized layers.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    network: A Network object.</span>
+<span class="sd">    serialize_layer_fn: Function used to serialize layers.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    Config dictionary.</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="n">serialize_layer_fn</span> <span class="o">=</span> <span class="p">(</span>
+      <span class="n">serialize_layer_fn</span> <span class="ow">or</span> <span class="n">generic_utils</span><span class="o">.</span><span class="n">serialize_keras_object</span><span class="p">)</span>
+  <span class="n">config</span> <span class="o">=</span> <span class="p">{</span>
+      <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">network</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+  <span class="p">}</span>
+  <span class="n">node_conversion_map</span> <span class="o">=</span> <span class="p">{}</span>
+  <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">network</span><span class="o">.</span><span class="n">layers</span><span class="p">:</span>
+    <span class="n">kept_nodes</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">_should_skip_first_node</span><span class="p">(</span><span class="n">layer</span><span class="p">)</span> <span class="k">else</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">original_node_index</span><span class="p">,</span> <span class="n">node</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">_inbound_nodes</span><span class="p">):</span>
+      <span class="n">node_key</span> <span class="o">=</span> <span class="n">_make_node_key</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">original_node_index</span><span class="p">)</span>
+      <span class="k">if</span> <span class="n">node_key</span> <span class="ow">in</span> <span class="n">network</span><span class="o">.</span><span class="n">_network_nodes</span><span class="p">:</span>
+        <span class="n">node_conversion_map</span><span class="p">[</span><span class="n">node_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">kept_nodes</span>
+        <span class="n">kept_nodes</span> <span class="o">+=</span> <span class="mi">1</span>
+  <span class="n">layer_configs</span> <span class="o">=</span> <span class="p">[]</span>
+  <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">network</span><span class="o">.</span><span class="n">layers</span><span class="p">:</span>  <span class="c1"># From the earliest layers on.</span>
+    <span class="n">filtered_inbound_nodes</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">original_node_index</span><span class="p">,</span> <span class="n">node</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">_inbound_nodes</span><span class="p">):</span>
+      <span class="n">node_key</span> <span class="o">=</span> <span class="n">_make_node_key</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">original_node_index</span><span class="p">)</span>
+      <span class="k">if</span> <span class="n">node_key</span> <span class="ow">in</span> <span class="n">network</span><span class="o">.</span><span class="n">_network_nodes</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">node</span><span class="o">.</span><span class="n">is_input</span><span class="p">:</span>
+        <span class="c1"># The node is relevant to the model:</span>
+        <span class="c1"># add to filtered_inbound_nodes.</span>
+        <span class="n">node_data</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">serialize</span><span class="p">(</span><span class="n">_make_node_key</span><span class="p">,</span> <span class="n">node_conversion_map</span><span class="p">)</span>
+        <span class="n">filtered_inbound_nodes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node_data</span><span class="p">)</span>
+
+    <span class="n">layer_config</span> <span class="o">=</span> <span class="n">serialize_layer_fn</span><span class="p">(</span><span class="n">layer</span><span class="p">)</span>
+    <span class="n">layer_config</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">name</span>
+    <span class="n">layer_config</span><span class="p">[</span><span class="s1">&#39;inbound_nodes&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">filtered_inbound_nodes</span>
+    <span class="n">layer_configs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layer_config</span><span class="p">)</span>
+  <span class="n">config</span><span class="p">[</span><span class="s1">&#39;layers&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">layer_configs</span>
+
+  <span class="c1"># Gather info about inputs and outputs.</span>
+  <span class="n">model_inputs</span> <span class="o">=</span> <span class="p">[]</span>
+  <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">network</span><span class="o">.</span><span class="n">_input_layers</span><span class="p">)):</span>
+    <span class="n">layer</span><span class="p">,</span> <span class="n">node_index</span><span class="p">,</span> <span class="n">tensor_index</span> <span class="o">=</span> <span class="n">network</span><span class="o">.</span><span class="n">_input_coordinates</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+    <span class="n">node_key</span> <span class="o">=</span> <span class="n">_make_node_key</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">node_index</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">node_key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">network</span><span class="o">.</span><span class="n">_network_nodes</span><span class="p">:</span>
+      <span class="k">continue</span>
+    <span class="n">new_node_index</span> <span class="o">=</span> <span class="n">node_conversion_map</span><span class="p">[</span><span class="n">node_key</span><span class="p">]</span>
+    <span class="n">model_inputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+        <span class="n">tf_utils</span><span class="o">.</span><span class="n">ListWrapper</span><span class="p">([</span><span class="n">layer</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">new_node_index</span><span class="p">,</span> <span class="n">tensor_index</span><span class="p">]))</span>
+  <span class="n">model_inputs</span> <span class="o">=</span> <span class="n">nest</span><span class="o">.</span><span class="n">pack_sequence_as</span><span class="p">(</span><span class="n">network</span><span class="o">.</span><span class="n">_nested_inputs</span><span class="p">,</span> <span class="n">model_inputs</span><span class="p">)</span>
+  <span class="c1"># Preserve external Keras compat for Models with single input.</span>
+  <span class="k">if</span> <span class="ow">not</span> <span class="n">nest</span><span class="o">.</span><span class="n">is_nested</span><span class="p">(</span><span class="n">model_inputs</span><span class="p">):</span>
+    <span class="n">model_inputs</span> <span class="o">=</span> <span class="p">[</span><span class="n">model_inputs</span><span class="p">]</span>
+  <span class="n">model_inputs</span> <span class="o">=</span> <span class="n">tf_utils</span><span class="o">.</span><span class="n">convert_inner_node_data</span><span class="p">(</span><span class="n">model_inputs</span><span class="p">)</span>
+  <span class="n">config</span><span class="p">[</span><span class="s1">&#39;input_layers&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">model_inputs</span>
+
+  <span class="n">model_outputs</span> <span class="o">=</span> <span class="p">[]</span>
+  <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">network</span><span class="o">.</span><span class="n">_output_layers</span><span class="p">)):</span>
+    <span class="n">layer</span><span class="p">,</span> <span class="n">node_index</span><span class="p">,</span> <span class="n">tensor_index</span> <span class="o">=</span> <span class="n">network</span><span class="o">.</span><span class="n">_output_coordinates</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+    <span class="n">node_key</span> <span class="o">=</span> <span class="n">_make_node_key</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">node_index</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">node_key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">network</span><span class="o">.</span><span class="n">_network_nodes</span><span class="p">:</span>
+      <span class="k">continue</span>
+    <span class="n">new_node_index</span> <span class="o">=</span> <span class="n">node_conversion_map</span><span class="p">[</span><span class="n">node_key</span><span class="p">]</span>
+    <span class="n">model_outputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+        <span class="n">tf_utils</span><span class="o">.</span><span class="n">ListWrapper</span><span class="p">([</span><span class="n">layer</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">new_node_index</span><span class="p">,</span> <span class="n">tensor_index</span><span class="p">]))</span>
+  <span class="n">model_outputs</span> <span class="o">=</span> <span class="n">nest</span><span class="o">.</span><span class="n">pack_sequence_as</span><span class="p">(</span><span class="n">network</span><span class="o">.</span><span class="n">_nested_outputs</span><span class="p">,</span> <span class="n">model_outputs</span><span class="p">)</span>
+  <span class="c1"># Preserve external Keras compat for Models with single output.</span>
+  <span class="k">if</span> <span class="ow">not</span> <span class="n">nest</span><span class="o">.</span><span class="n">is_nested</span><span class="p">(</span><span class="n">model_outputs</span><span class="p">):</span>
+    <span class="n">model_outputs</span> <span class="o">=</span> <span class="p">[</span><span class="n">model_outputs</span><span class="p">]</span>
+  <span class="n">model_outputs</span> <span class="o">=</span> <span class="n">tf_utils</span><span class="o">.</span><span class="n">convert_inner_node_data</span><span class="p">(</span><span class="n">model_outputs</span><span class="p">)</span>
+  <span class="n">config</span><span class="p">[</span><span class="s1">&#39;output_layers&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">model_outputs</span>
+  <span class="k">return</span> <span class="n">config</span>
+
+
+<span class="k">def</span> <span class="nf">shape_with_no_batch_size</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+  <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="o">.</span><span class="n">rank</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">return</span> <span class="kc">None</span>
+  <span class="n">shape</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="o">.</span><span class="n">as_list</span><span class="p">()</span>
+  <span class="k">if</span> <span class="n">shape</span><span class="p">:</span>
+    <span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="k">return</span> <span class="n">shape</span>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, Runad_Nagateja_Pritam.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.7</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,0 +1,232 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>fine_tunning &#8212; Deep learning based methods for cancersubtype discovery 1 documentation</title>
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for fine_tunning</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">tensorflow.keras.models</span> <span class="kn">import</span> <span class="n">Model</span>
+<span class="kn">from</span> <span class="nn">tensorflow.keras.layers</span> <span class="kn">import</span> <span class="n">Input</span><span class="p">,</span><span class="n">Lambda</span>
+<span class="kn">from</span> <span class="nn">tensorflow.keras.layers</span> <span class="kn">import</span> <span class="n">Dense</span><span class="p">,</span><span class="n">Activation</span>
+<span class="kn">from</span> <span class="nn">tensorflow.keras.layers</span> <span class="kn">import</span> <span class="n">LeakyReLU</span>
+<span class="kn">from</span> <span class="nn">tensorflow.keras.layers</span> <span class="kn">import</span> <span class="n">BatchNormalization</span><span class="p">,</span><span class="n">Concatenate</span>
+<span class="kn">from</span> <span class="nn">tensorflow.keras.utils</span> <span class="kn">import</span> <span class="n">plot_model</span>
+<span class="kn">from</span> <span class="nn">keras.models</span> <span class="kn">import</span> <span class="n">load_model</span><span class="p">,</span><span class="n">Model</span><span class="p">,</span><span class="n">Sequential</span>
+<span class="kn">from</span> <span class="nn">sklearn.preprocessing</span> <span class="kn">import</span>  <span class="n">label_binarize</span>
+<span class="kn">from</span> <span class="nn">matplotlib</span> <span class="kn">import</span> <span class="n">pyplot</span>
+<span class="kn">import</span> <span class="nn">pickle</span>
+<div class="viewcode-block" id="fine_tune"><a class="viewcode-back" href="../fine_tunning.html#fine_tunning.fine_tune">[docs]</a><span class="k">def</span> <span class="nf">fine_tune</span><span class="p">(</span><span class="n">x_train</span><span class="p">,</span><span class="n">y_train</span><span class="p">,</span><span class="n">x_test</span><span class="p">,</span><span class="n">y_test</span><span class="p">,</span><span class="n">model_given</span><span class="p">,</span><span class="n">filename</span><span class="p">):</span>
+	<span class="sd">&quot;&quot;&quot;    </span>
+<span class="sd">	This function is used to fine tunning the model. Fine tuning phase only weights and bias of encoded layer is changed.Fine tunning helps encoded layer to relearn low level feature.</span>
+<span class="sd">	to help in accurate prediction</span>
+<span class="sd">	 Parameters</span>
+<span class="sd">	----------</span>
+<span class="sd">	X_train : (float)</span>
+<span class="sd">	    It is orignal data of input training dataset.</span>
+<span class="sd">	y_train : (float)</span>
+<span class="sd">	    It is orignal data of label training dataset.</span>
+<span class="sd">	X_test : (float)</span>
+<span class="sd">	    It is orignal data of input testing dataset.</span>
+<span class="sd">	y_test : (float)</span>
+<span class="sd">	     It is orignal data of label testing dataset.</span>
+<span class="sd">	model_given:(object)</span>
+<span class="sd">	It is passed the Unsupervised model.</span>
+<span class="sd">	filename:object()</span>
+<span class="sd">	It is save the model.</span>
+<span class="sd">	&quot;&quot;&quot;</span>
+	<span class="n">y_train_binarize</span> <span class="o">=</span> <span class="n">label_binarize</span><span class="p">(</span><span class="n">y_train</span><span class="p">,</span> <span class="n">classes</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">])</span>
+	<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">	Inbuilt Function:label_binarize(y_train, classes=[0,1,2,3])</span>
+<span class="sd">	This function makes it possible to compute this transformation for a fixed set of class labels known ahead of time.</span>
+<span class="sd">	y_train:(object)</span>
+<span class="sd">	Sequence of integer labels or multilabel data to encode.</span>
+<span class="sd">	classes:(object)</span>
+<span class="sd">	Uniquely holds the label for each class. </span>
+<span class="sd">	&quot;&quot;&quot;</span>
+	<span class="n">y_test_binarize</span> <span class="o">=</span> <span class="n">label_binarize</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">classes</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">])</span>
+	<span class="sd">&quot;&quot;&quot;       </span>
+<span class="sd">	Inbuilt Function:label_binarize(y_test, classes=[0,1,2,3])</span>
+<span class="sd">	This function makes it possible to compute this transformation for a fixed set of class labels known ahead of time.</span>
+<span class="sd">	y_test:(object)</span>
+<span class="sd">	Sequence of integer labels or multilabel data to encode.</span>
+<span class="sd">	classes:(object)</span>
+<span class="sd">	Uniquely holds the label for each class.  </span>
+<span class="sd">	&quot;&quot;&quot;</span>
+	<span class="n">model</span><span class="o">=</span><span class="n">load_model</span><span class="p">(</span><span class="n">model_given</span><span class="p">)</span>
+	<span class="n">model</span><span class="o">.</span><span class="n">summary</span><span class="p">()</span>
+	<span class="k">def</span> <span class="nf">print_layer_trainable</span><span class="p">(</span><span class="n">model</span><span class="p">):</span>
+		<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">	    It is print the all train layer in the model.</span>
+<span class="sd">	    First all the layer is freeze or  not trainable with the help of &quot;l.trainable=False&quot;.</span>
+<span class="sd">	    If apply after the Dense function and Lambda , If all the layer is unfreezed with the help of &quot;i.trainable=True&quot;.  </span>
+<span class="sd">	    Parameters</span>
+<span class="sd">	    ----------</span>
+<span class="sd">	    model : (object)</span>
+<span class="sd">	    It is passed the Unsupervised model.</span>
+<span class="sd">	    &quot;&quot;&quot;</span>
+		<span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">layers</span><span class="p">:</span>
+			<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{0}</span><span class="s2">:</span><span class="se">\t</span><span class="si">{1}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">trainable</span><span class="p">,</span><span class="n">layer</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+	<span class="c1">#print_layer_trainable(model)</span>
+	<span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+		<span class="c1">#print(l.name)</span>
+		<span class="n">l</span><span class="o">.</span><span class="n">trainable</span><span class="o">=</span><span class="kc">False</span>
+	<span class="c1">#print_layer_trainable(model)</span>
+	<span class="n">x</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">output</span>
+	<span class="n">new</span><span class="o">=</span><span class="n">Dense</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span><span class="n">activation</span><span class="o">=</span><span class="s2">&quot;softmax&quot;</span><span class="p">,</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;output&quot;</span><span class="p">)(</span><span class="n">x</span><span class="p">)</span>
+	<span class="sd">&quot;&quot;&quot; </span>
+<span class="sd">	INBUILT FUNCTION : Dense(4,activation=&quot;softmax&quot;,name=&quot;output&quot;)</span>
+<span class="sd">	Extended description of function</span>
+<span class="sd">	The dense layer is a neural network layer that is connected deeply, which means each neuron in the dense layer receives input from all neurons of its previous layer.</span>
+<span class="sd">	Parameters</span>
+<span class="sd">	----------</span>
+<span class="sd">	activation : (function)</span>
+<span class="sd">	It is a activation functio . I used the softmax() activation function.</span>
+<span class="sd">	name : (object)</span>
+<span class="sd">	It just labelled the name is output.</span>
+<span class="sd">	return:It return is the output and it will be passed into the next layer.</span>
+<span class="sd">	&quot;&quot;&quot;</span>
+	<span class="n">final</span> <span class="o">=</span> <span class="n">Model</span><span class="p">(</span><span class="n">inputs</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">input</span><span class="p">,</span> <span class="n">outputs</span><span class="o">=</span><span class="n">new</span><span class="p">)</span>
+	<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">	FUNCTION:Model(inputs=model.input, outputs=new)</span>
+<span class="sd">	It make the model and return the model save to new.</span>
+<span class="sd">	Parameters</span>
+<span class="sd">	----------</span>
+<span class="sd">	inputs:(object)</span>
+<span class="sd">	It is a intial input layer</span>
+<span class="sd">	outputs:(object)</span>
+<span class="sd">	It is add 4 layer in &quot;x&quot; with the help of dense function.</span>
+<span class="sd">	If the model return of dense is assign in otput.</span>
+<span class="sd">	&quot;&quot;&quot;</span>
+	<span class="c1">#plot_model(final, &#39;fine_tunning.png&#39;, show_shapes=True)</span>
+	<span class="c1">#print_layer_trainable(final)</span>
+	<span class="n">final</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">optimizer</span> <span class="o">=</span> <span class="s1">&#39;adadelta&#39;</span><span class="p">,</span> <span class="n">loss</span> <span class="o">=</span> <span class="s1">&#39;categorical_crossentropy&#39;</span><span class="p">)</span>
+	<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">	Inbuilt Function:compile(optimizer = &#39;adadelta&#39;, loss = &#39;categorical_crossentropy&#39;)</span>
+<span class="sd">	It is used if the Python code is in string form or is an AST object, and you want to change it to a code object.</span>
+<span class="sd">	Parameters</span>
+<span class="sd">	----------</span>
+<span class="sd">	optimizer:(String)</span>
+<span class="sd">	It is optimize the code with the help of optimizer function &quot;adadelta&quot;.</span>
+<span class="sd">	loss:(String)</span>
+<span class="sd">	If the model has multiple outputs, you can use a different loss on each output by passing a dictionary or a list of losses.</span>
+<span class="sd">	&quot;&quot;&quot;</span>
+	<span class="n">final</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">x_train</span><span class="p">,</span> <span class="n">y_train_binarize</span><span class="p">,</span> <span class="n">batch_size</span> <span class="o">=</span> <span class="mi">20</span><span class="p">,</span> <span class="n">epochs</span> <span class="o">=</span> <span class="mi">50</span><span class="p">)</span>
+	<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">	Function:fit(x_train, y_train_binarize, batch_size = 20, epochs = 50)</span>
+<span class="sd">	This function is used to fit the x_train and y_train_binarize in the   model.</span>
+<span class="sd">	Parameters</span>
+<span class="sd">	----------</span>
+<span class="sd">	x_train:(float)</span>
+<span class="sd">	This data is used  to scale along the features axis.</span>
+<span class="sd">	y_train_binarize:(object)</span>
+<span class="sd">	y_train_binarize is come after label_binarize training data of label.</span>
+<span class="sd">	batch_size:(int)</span>
+<span class="sd">	The subset size of your training sample.</span>
+<span class="sd">	&quot;&quot;&quot;</span>
+	<span class="c1">#score = final.evaluate(x_test, y_test_binarize, verbose=1, batch_size=20)</span>
+	<span class="c1">#print(&quot;Test Accuracy:&quot;,score)</span>
+	<span class="c1">#model2 = Model(model.input,model.layers[:-1])</span>
+	<span class="n">x</span> <span class="o">=</span> <span class="n">Lambda</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span><span class="n">x</span><span class="p">)(</span><span class="n">model</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">output</span><span class="p">)</span>
+	<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">	Inbuilt FUNCTION:Lambda()</span>
+<span class="sd">	In a lambda function is a single-line function declared with no name, which can have any number of arguments, but it can only have one expression.</span>
+<span class="sd">	In this function the last layer of output is removed and return th model.</span>
+<span class="sd">	It is make the subroutine.</span>
+<span class="sd">	&quot;&quot;&quot;</span>
+	<span class="n">model2</span> <span class="o">=</span> <span class="n">Model</span><span class="p">(</span><span class="n">inputs</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">input</span><span class="p">,</span> <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="n">x</span><span class="p">])</span>
+	<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">	FUNCTION:Model(inputs=model.input, outputs=new)</span>
+<span class="sd">	It make the model and return the model save to new.</span>
+<span class="sd">	It is save he subroutine.</span>
+<span class="sd">	Parameters</span>
+<span class="sd">	----------</span>
+<span class="sd">	inputs:(object)</span>
+<span class="sd">	It is a intial input layer.</span>
+<span class="sd">	outputs:(object)</span>
+<span class="sd">	After the model return in  lambda function ,It assign the x in outpts.</span>
+<span class="sd">	&quot;&quot;&quot;</span>
+	<span class="c1">#model.summary()</span>
+	<span class="n">model2</span><span class="o">.</span><span class="n">summary</span><span class="p">()</span>
+	<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">model2</span><span class="o">.</span><span class="n">layers</span><span class="p">:</span>
+		<span class="n">i</span><span class="o">.</span><span class="n">trainable</span><span class="o">=</span><span class="kc">True</span>
+	<span class="n">model2</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, Runad_Nagateja_Pritam.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.7</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

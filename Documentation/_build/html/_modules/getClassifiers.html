@@ -1,0 +1,138 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>getClassifiers &#8212; Deep learning based methods for cancersubtype discovery 1 documentation</title>
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for getClassifiers</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">sklearn.discriminant_analysis</span> <span class="kn">import</span> <span class="n">LinearDiscriminantAnalysis</span><span class="p">,</span> <span class="n">QuadraticDiscriminantAnalysis</span>
+<span class="kn">from</span> <span class="nn">sklearn.linear_model</span> <span class="kn">import</span> <span class="n">LogisticRegression</span>
+<span class="kn">from</span> <span class="nn">sklearn.naive_bayes</span> <span class="kn">import</span> <span class="n">GaussianNB</span>
+<span class="kn">from</span> <span class="nn">sklearn</span> <span class="kn">import</span> <span class="n">metrics</span>
+<span class="kn">from</span> <span class="nn">sklearn.ensemble</span> <span class="kn">import</span> <span class="n">RandomTreesEmbedding</span><span class="p">,</span> <span class="n">RandomForestClassifier</span><span class="p">,</span> <span class="n">GradientBoostingClassifier</span><span class="p">,</span> <span class="n">VotingClassifier</span>
+<span class="kn">from</span> <span class="nn">sklearn.tree</span> <span class="kn">import</span> <span class="n">DecisionTreeClassifier</span>
+<span class="kn">from</span> <span class="nn">sklearn.svm</span> <span class="kn">import</span> <span class="n">SVC</span><span class="p">,</span> <span class="n">LinearSVC</span>
+<span class="kn">from</span> <span class="nn">sklearn.neural_network</span> <span class="kn">import</span> <span class="n">MLPClassifier</span><span class="p">,</span> <span class="n">BernoulliRBM</span>
+<span class="kn">from</span> <span class="nn">sklearn</span> <span class="kn">import</span> <span class="n">model_selection</span>
+<span class="kn">from</span> <span class="nn">sklearn.decomposition</span> <span class="kn">import</span> <span class="n">PCA</span><span class="p">,</span> <span class="n">KernelPCA</span><span class="p">,</span> <span class="n">SparsePCA</span><span class="p">,</span> <span class="n">MiniBatchSparsePCA</span><span class="p">,</span> <span class="n">NMF</span><span class="p">,</span> <span class="n">TruncatedSVD</span><span class="p">,</span> <span class="n">FastICA</span><span class="p">,</span> <span class="n">FactorAnalysis</span><span class="p">,</span> <span class="n">LatentDirichletAllocation</span>
+<span class="kn">from</span> <span class="nn">sklearn.neighbors</span> <span class="kn">import</span> <span class="n">KNeighborsClassifier</span>
+<span class="kn">from</span> <span class="nn">xgboost</span> <span class="kn">import</span> <span class="n">XGBClassifier</span>
+<span class="n">seed</span><span class="o">=</span><span class="mi">75</span>
+
+
+<div class="viewcode-block" id="getClassifiers"><a class="viewcode-back" href="../getClassifiers.html#getClassifiers.getClassifiers">[docs]</a><span class="k">def</span> <span class="nf">getClassifiers</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    It has define diffrent Classifiers and return it.</span>
+<span class="sd">    KNeighborsClassifier:K nearest neighbors is a simple algorithm that stores all available cases and classifies new cases based on a similarity measure (e.g., distance functions).</span>
+<span class="sd">    DecisionTreeClassifier:A random forest is a meta estimator that fits a number of decision tree classifiers on various sub-samples of the dataset and uses averaging to improve the predictive accuracy and control over-fitting. </span>
+<span class="sd">    RandomForestClassifier:A random forest is a meta estimator that fits a number of decision tree classifiers on various sub-samples of the dataset and uses averaging to improve the predictive accuracy and control over-fitting. </span>
+<span class="sd">    XGBClassifier:  XGBoost is an implementation of gradient boosted decision trees designed for speed and performance.</span>
+<span class="sd">    GradientBoostingClassifier:Gradient boosting classifiers are a group of machine learning algorithms that combine many weak learning models together to create a strong predictive model. </span>
+<span class="sd">    Decision trees are usually used when doing gradient boosting.</span>
+<span class="sd">    GaussianNB:A Gaussian Naive Bayes algorithm is a special type of NB algorithm.</span>
+<span class="sd">    It&#39;s specifically used when the features have continuous values.</span>
+<span class="sd">    LinearDiscriminantAnalysis:A classifier with a linear decision boundary, generated by fitting class conditional densities to the data and using Bayes&#39; rule.</span>
+<span class="sd">    QuadraticDiscriminantAnalysis:A classifier with a quadratic decision boundary, generated by fitting class conditional densities to the data and using Bayes&#39; rule.</span>
+<span class="sd">    SVC:The implementation is based on libsvm. </span>
+<span class="sd">    The fit time scales at least quadratically with the number of samples and may be impractical beyond tens of thousands of samples.</span>
+<span class="sd">    LogisticRegression:n the multiclass case, the training algorithm uses the one-vs-rest (OvR) scheme if the &#39;multi_class&#39; option is set to &#39;ovr&#39;, and uses the cross-entropy loss if the &#39;multi_class&#39; option is set to &#39;multinomial&#39;.</span>
+<span class="sd">    MLPClassifier:This model optimizes the log-loss function using LBFGS or stochastic gradient descent.</span>
+<span class="sd">    VotingClassifier:A Voting Classifier is a machine learning model that trains on an ensemble of numerous models and predicts an output (class) based on their highest probability of chosen class as the output</span>
+<span class="sd">    Returns</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">classifiers</span> <span class="o">=</span> <span class="p">[</span>
+    	    <span class="n">KNeighborsClassifier</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span>
+    	    <span class="n">DecisionTreeClassifier</span><span class="p">(</span><span class="n">random_state</span><span class="o">=</span><span class="n">seed</span><span class="p">),</span>
+    	    <span class="n">RandomForestClassifier</span><span class="p">(</span><span class="n">criterion</span><span class="o">=</span><span class="s1">&#39;entropy&#39;</span><span class="p">,</span> <span class="n">n_estimators</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="n">seed</span><span class="p">),</span>
+    	    <span class="n">XGBClassifier</span><span class="p">(</span><span class="n">learning_rate</span><span class="o">=</span><span class="mf">0.001</span><span class="p">,</span><span class="n">max_depth</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span><span class="n">n_estimators</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">nthread</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">subsample</span><span class="o">=</span><span class="mf">0.65</span><span class="p">),</span>
+    	    <span class="n">GradientBoostingClassifier</span><span class="p">(</span><span class="n">random_state</span><span class="o">=</span><span class="n">seed</span><span class="p">),</span>
+    	    <span class="n">GaussianNB</span><span class="p">(),</span>
+    	    <span class="n">LinearDiscriminantAnalysis</span><span class="p">(),</span>
+    	    <span class="n">QuadraticDiscriminantAnalysis</span><span class="p">(),</span>
+    	    <span class="n">SVC</span><span class="p">(</span><span class="n">kernel</span><span class="o">=</span><span class="s1">&#39;rbf&#39;</span><span class="p">,</span> <span class="n">probability</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="n">seed</span><span class="p">),</span>
+    	    <span class="n">LogisticRegression</span><span class="p">(</span><span class="n">C</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">multi_class</span><span class="o">=</span> <span class="s1">&#39;multinomial&#39;</span><span class="p">,</span> <span class="n">solver</span><span class="o">=</span><span class="s1">&#39;sag&#39;</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="n">seed</span><span class="p">),</span>
+    	    <span class="n">MLPClassifier</span><span class="p">(</span><span class="n">hidden_layer_sizes</span><span class="o">=</span><span class="p">(</span><span class="mi">500</span><span class="p">),</span> <span class="n">random_state</span><span class="o">=</span><span class="n">seed</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">activation</span><span class="o">=</span><span class="s1">&#39;tanh&#39;</span><span class="p">,</span> <span class="n">solver</span><span class="o">=</span><span class="s1">&#39;adam&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.0001</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">),</span>
+    	    <span class="n">VotingClassifier</span><span class="p">(</span><span class="n">estimators</span><span class="o">=</span><span class="p">[(</span><span class="s1">&#39;MLP&#39;</span><span class="p">,</span> <span class="n">MLPClassifier</span><span class="p">(</span><span class="n">hidden_layer_sizes</span><span class="o">=</span><span class="p">(</span><span class="mi">500</span><span class="p">),</span> <span class="n">random_state</span><span class="o">=</span><span class="n">seed</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">activation</span><span class="o">=</span><span class="s1">&#39;tanh&#39;</span><span class="p">,</span> <span class="n">solver</span><span class="o">=</span><span class="s1">&#39;adam&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.0001</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">)),</span> 
+    	    <span class="p">(</span><span class="s1">&#39;LDA&#39;</span><span class="p">,</span> <span class="n">LinearDiscriminantAnalysis</span><span class="p">()),</span>
+    	    <span class="p">(</span><span class="s1">&#39;LR&#39;</span><span class="p">,</span> <span class="n">LogisticRegression</span><span class="p">(</span><span class="n">C</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">multi_class</span><span class="o">=</span> <span class="s1">&#39;multinomial&#39;</span><span class="p">,</span> <span class="n">solver</span><span class="o">=</span><span class="s1">&#39;sag&#39;</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="n">seed</span><span class="p">))],</span> <span class="n">voting</span><span class="o">=</span><span class="s1">&#39;soft&#39;</span><span class="p">)]</span>
+    <span class="k">return</span> <span class="n">classifiers</span></div>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, Runad_Nagateja_Pritam.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.7</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,0 +1,831 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>imblearn.over_sampling._smote.base &#8212; Deep learning based methods for cancersubtype discovery 1 documentation</title>
+    <link rel="stylesheet" href="../../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+   
+  <link rel="stylesheet" href="../../../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for imblearn.over_sampling._smote.base</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Base class and original SMOTE methods for over-sampling&quot;&quot;&quot;</span>
+
+<span class="c1"># Authors: Guillaume Lemaitre &lt;g.lemaitre58@gmail.com&gt;</span>
+<span class="c1">#          Fernando Nogueira</span>
+<span class="c1">#          Christos Aridas</span>
+<span class="c1">#          Dzianis Dudnik</span>
+<span class="c1"># License: MIT</span>
+
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">Counter</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">sparse</span>
+<span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">stats</span>
+
+<span class="kn">from</span> <span class="nn">sklearn.preprocessing</span> <span class="kn">import</span> <span class="n">OneHotEncoder</span><span class="p">,</span> <span class="n">OrdinalEncoder</span>
+<span class="kn">from</span> <span class="nn">sklearn.utils</span> <span class="kn">import</span> <span class="n">check_random_state</span>
+<span class="kn">from</span> <span class="nn">sklearn.utils</span> <span class="kn">import</span> <span class="n">_safe_indexing</span>
+<span class="kn">from</span> <span class="nn">sklearn.utils</span> <span class="kn">import</span> <span class="n">check_array</span>
+<span class="kn">from</span> <span class="nn">sklearn.utils.sparsefuncs_fast</span> <span class="kn">import</span> <span class="n">csr_mean_variance_axis0</span>
+<span class="kn">from</span> <span class="nn">sklearn.utils.sparsefuncs_fast</span> <span class="kn">import</span> <span class="n">csc_mean_variance_axis0</span>
+
+<span class="kn">from</span> <span class="nn">..base</span> <span class="kn">import</span> <span class="n">BaseOverSampler</span>
+<span class="kn">from</span> <span class="nn">...metrics.pairwise</span> <span class="kn">import</span> <span class="n">ValueDifferenceMetric</span>
+<span class="kn">from</span> <span class="nn">...utils</span> <span class="kn">import</span> <span class="n">check_neighbors_object</span>
+<span class="kn">from</span> <span class="nn">...utils</span> <span class="kn">import</span> <span class="n">check_target_type</span>
+<span class="kn">from</span> <span class="nn">...utils</span> <span class="kn">import</span> <span class="n">Substitution</span>
+<span class="kn">from</span> <span class="nn">...utils._docstring</span> <span class="kn">import</span> <span class="n">_n_jobs_docstring</span>
+<span class="kn">from</span> <span class="nn">...utils._docstring</span> <span class="kn">import</span> <span class="n">_random_state_docstring</span>
+<span class="kn">from</span> <span class="nn">...utils._validation</span> <span class="kn">import</span> <span class="n">_deprecate_positional_args</span>
+
+
+<span class="k">class</span> <span class="nc">BaseSMOTE</span><span class="p">(</span><span class="n">BaseOverSampler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Base class for the different SMOTE algorithms.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">sampling_strategy</span><span class="o">=</span><span class="s2">&quot;auto&quot;</span><span class="p">,</span>
+        <span class="n">random_state</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">k_neighbors</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+        <span class="n">n_jobs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">sampling_strategy</span><span class="o">=</span><span class="n">sampling_strategy</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">random_state</span> <span class="o">=</span> <span class="n">random_state</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">k_neighbors</span> <span class="o">=</span> <span class="n">k_neighbors</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_jobs</span> <span class="o">=</span> <span class="n">n_jobs</span>
+
+    <span class="k">def</span> <span class="nf">_validate_estimator</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Check the NN estimators shared across the different SMOTE</span>
+<span class="sd">        algorithms.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nn_k_</span> <span class="o">=</span> <span class="n">check_neighbors_object</span><span class="p">(</span>
+            <span class="s2">&quot;k_neighbors&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">k_neighbors</span><span class="p">,</span> <span class="n">additional_neighbor</span><span class="o">=</span><span class="mi">1</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_make_samples</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y_dtype</span><span class="p">,</span> <span class="n">y_type</span><span class="p">,</span> <span class="n">nn_data</span><span class="p">,</span> <span class="n">nn_num</span><span class="p">,</span> <span class="n">n_samples</span><span class="p">,</span> <span class="n">step_size</span><span class="o">=</span><span class="mf">1.0</span>
+    <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A support function that returns artificial samples constructed along</span>
+<span class="sd">        the line connecting nearest neighbours.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        X : {array-like, sparse matrix} of shape (n_samples, n_features)</span>
+<span class="sd">            Points from which the points will be created.</span>
+
+<span class="sd">        y_dtype : dtype</span>
+<span class="sd">            The data type of the targets.</span>
+
+<span class="sd">        y_type : str or int</span>
+<span class="sd">            The minority target value, just so the function can return the</span>
+<span class="sd">            target values for the synthetic variables with correct length in</span>
+<span class="sd">            a clear format.</span>
+
+<span class="sd">        nn_data : ndarray of shape (n_samples_all, n_features)</span>
+<span class="sd">            Data set carrying all the neighbours to be used</span>
+
+<span class="sd">        nn_num : ndarray of shape (n_samples_all, k_nearest_neighbours)</span>
+<span class="sd">            The nearest neighbours of each sample in `nn_data`.</span>
+
+<span class="sd">        n_samples : int</span>
+<span class="sd">            The number of samples to generate.</span>
+
+<span class="sd">        step_size : float, default=1.0</span>
+<span class="sd">            The step size to create samples.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        X_new : {ndarray, sparse matrix} of shape (n_samples_new, n_features)</span>
+<span class="sd">            Synthetically generated samples.</span>
+
+<span class="sd">        y_new : ndarray of shape (n_samples_new,)</span>
+<span class="sd">            Target values for synthetic samples.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">random_state</span> <span class="o">=</span> <span class="n">check_random_state</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">random_state</span><span class="p">)</span>
+        <span class="n">samples_indices</span> <span class="o">=</span> <span class="n">random_state</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="n">low</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">high</span><span class="o">=</span><span class="n">nn_num</span><span class="o">.</span><span class="n">size</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">n_samples</span><span class="p">)</span>
+
+        <span class="c1"># np.newaxis for backwards compatability with random_state</span>
+        <span class="n">steps</span> <span class="o">=</span> <span class="n">step_size</span> <span class="o">*</span> <span class="n">random_state</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="n">n_samples</span><span class="p">)[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+        <span class="n">rows</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">floor_divide</span><span class="p">(</span><span class="n">samples_indices</span><span class="p">,</span> <span class="n">nn_num</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">cols</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mod</span><span class="p">(</span><span class="n">samples_indices</span><span class="p">,</span> <span class="n">nn_num</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+        <span class="n">X_new</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_generate_samples</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">nn_data</span><span class="p">,</span> <span class="n">nn_num</span><span class="p">,</span> <span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="p">,</span> <span class="n">steps</span><span class="p">)</span>
+        <span class="n">y_new</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">n_samples</span><span class="p">,</span> <span class="n">fill_value</span><span class="o">=</span><span class="n">y_type</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">y_dtype</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">X_new</span><span class="p">,</span> <span class="n">y_new</span>
+
+    <span class="k">def</span> <span class="nf">_generate_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">nn_data</span><span class="p">,</span> <span class="n">nn_num</span><span class="p">,</span> <span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="p">,</span> <span class="n">steps</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Generate a synthetic sample.</span>
+
+<span class="sd">        The rule for the generation is:</span>
+
+<span class="sd">        .. math::</span>
+<span class="sd">           \mathbf{s_{s}} = \mathbf{s_{i}} + \mathcal{u}(0, 1) \times</span>
+<span class="sd">           (\mathbf{s_{i}} - \mathbf{s_{nn}}) \,</span>
+
+<span class="sd">        where \mathbf{s_{s}} is the new synthetic samples, \mathbf{s_{i}} is</span>
+<span class="sd">        the current sample, \mathbf{s_{nn}} is a randomly selected neighbors of</span>
+<span class="sd">        \mathbf{s_{i}} and \mathcal{u}(0, 1) is a random number between [0, 1).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        X : {array-like, sparse matrix} of shape (n_samples, n_features)</span>
+<span class="sd">            Points from which the points will be created.</span>
+
+<span class="sd">        nn_data : ndarray of shape (n_samples_all, n_features)</span>
+<span class="sd">            Data set carrying all the neighbours to be used.</span>
+
+<span class="sd">        nn_num : ndarray of shape (n_samples_all, k_nearest_neighbours)</span>
+<span class="sd">            The nearest neighbours of each sample in `nn_data`.</span>
+
+<span class="sd">        rows : ndarray of shape (n_samples,), dtype=int</span>
+<span class="sd">            Indices pointing at feature vector in X which will be used</span>
+<span class="sd">            as a base for creating new samples.</span>
+
+<span class="sd">        cols : ndarray of shape (n_samples,), dtype=int</span>
+<span class="sd">            Indices pointing at which nearest neighbor of base feature vector</span>
+<span class="sd">            will be used when creating new samples.</span>
+
+<span class="sd">        steps : ndarray of shape (n_samples,), dtype=float</span>
+<span class="sd">            Step sizes for new samples.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        X_new : {ndarray, sparse matrix} of shape (n_samples, n_features)</span>
+<span class="sd">            Synthetically generated samples.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">diffs</span> <span class="o">=</span> <span class="n">nn_data</span><span class="p">[</span><span class="n">nn_num</span><span class="p">[</span><span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="p">]]</span> <span class="o">-</span> <span class="n">X</span><span class="p">[</span><span class="n">rows</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">sparse</span><span class="o">.</span><span class="n">issparse</span><span class="p">(</span><span class="n">X</span><span class="p">):</span>
+            <span class="n">sparse_func</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">X</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span>
+            <span class="n">steps</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">sparse</span><span class="p">,</span> <span class="n">sparse_func</span><span class="p">)(</span><span class="n">steps</span><span class="p">)</span>
+            <span class="n">X_new</span> <span class="o">=</span> <span class="n">X</span><span class="p">[</span><span class="n">rows</span><span class="p">]</span> <span class="o">+</span> <span class="n">steps</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">diffs</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">X_new</span> <span class="o">=</span> <span class="n">X</span><span class="p">[</span><span class="n">rows</span><span class="p">]</span> <span class="o">+</span> <span class="n">steps</span> <span class="o">*</span> <span class="n">diffs</span>
+
+        <span class="k">return</span> <span class="n">X_new</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_in_danger_noise</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nn_estimator</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">target_class</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="s2">&quot;danger&quot;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Estimate if a set of sample are in danger or noise.</span>
+
+<span class="sd">        Used by BorderlineSMOTE and SVMSMOTE.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        nn_estimator : estimator object</span>
+<span class="sd">            An estimator that inherits from</span>
+<span class="sd">            :class:`~sklearn.neighbors.base.KNeighborsMixin` use to determine</span>
+<span class="sd">            if a sample is in danger/noise.</span>
+
+<span class="sd">        samples : {array-like, sparse matrix} of shape (n_samples, n_features)</span>
+<span class="sd">            The samples to check if either they are in danger or not.</span>
+
+<span class="sd">        target_class : int or str</span>
+<span class="sd">            The target corresponding class being over-sampled.</span>
+
+<span class="sd">        y : array-like of shape (n_samples,)</span>
+<span class="sd">            The true label in order to check the neighbour labels.</span>
+
+<span class="sd">        kind : {&#39;danger&#39;, &#39;noise&#39;}, default=&#39;danger&#39;</span>
+<span class="sd">            The type of classification to use. Can be either:</span>
+
+<span class="sd">            - If &#39;danger&#39;, check if samples are in danger,</span>
+<span class="sd">            - If &#39;noise&#39;, check if samples are noise.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        output : ndarray of shape (n_samples,)</span>
+<span class="sd">            A boolean array where True refer to samples in danger or noise.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">nn_estimator</span><span class="o">.</span><span class="n">kneighbors</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">return_distance</span><span class="o">=</span><span class="kc">False</span><span class="p">)[:,</span> <span class="mi">1</span><span class="p">:]</span>
+        <span class="n">nn_label</span> <span class="o">=</span> <span class="p">(</span><span class="n">y</span><span class="p">[</span><span class="n">x</span><span class="p">]</span> <span class="o">!=</span> <span class="n">target_class</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">n_maj</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">nn_label</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;danger&quot;</span><span class="p">:</span>
+            <span class="c1"># Samples are in danger for m/2 &lt;= m&#39; &lt; m</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">bitwise_and</span><span class="p">(</span>
+                <span class="n">n_maj</span> <span class="o">&gt;=</span> <span class="p">(</span><span class="n">nn_estimator</span><span class="o">.</span><span class="n">n_neighbors</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span>
+                <span class="n">n_maj</span> <span class="o">&lt;</span> <span class="n">nn_estimator</span><span class="o">.</span><span class="n">n_neighbors</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">elif</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;noise&quot;</span><span class="p">:</span>
+            <span class="c1"># Samples are noise for m = m&#39;</span>
+            <span class="k">return</span> <span class="n">n_maj</span> <span class="o">==</span> <span class="n">nn_estimator</span><span class="o">.</span><span class="n">n_neighbors</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+
+
+<span class="nd">@Substitution</span><span class="p">(</span>
+    <span class="n">sampling_strategy</span><span class="o">=</span><span class="n">BaseOverSampler</span><span class="o">.</span><span class="n">_sampling_strategy_docstring</span><span class="p">,</span>
+    <span class="n">n_jobs</span><span class="o">=</span><span class="n">_n_jobs_docstring</span><span class="p">,</span>
+    <span class="n">random_state</span><span class="o">=</span><span class="n">_random_state_docstring</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="k">class</span> <span class="nc">SMOTE</span><span class="p">(</span><span class="n">BaseSMOTE</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Class to perform over-sampling using SMOTE.</span>
+
+<span class="sd">    This object is an implementation of SMOTE - Synthetic Minority</span>
+<span class="sd">    Over-sampling Technique as presented in [1]_.</span>
+
+<span class="sd">    Read more in the :ref:`User Guide &lt;smote_adasyn&gt;`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    {sampling_strategy}</span>
+
+<span class="sd">    {random_state}</span>
+
+<span class="sd">    k_neighbors : int or object, default=5</span>
+<span class="sd">        If ``int``, number of nearest neighbours to used to construct synthetic</span>
+<span class="sd">        samples.  If object, an estimator that inherits from</span>
+<span class="sd">        :class:`~sklearn.neighbors.base.KNeighborsMixin` that will be used to</span>
+<span class="sd">        find the k_neighbors.</span>
+
+<span class="sd">    {n_jobs}</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    SMOTENC : Over-sample using SMOTE for continuous and categorical features.</span>
+
+<span class="sd">    SMOTEN : Over-sample using the SMOTE variant specifically for categorical</span>
+<span class="sd">        features only.</span>
+
+<span class="sd">    BorderlineSMOTE : Over-sample using the borderline-SMOTE variant.</span>
+
+<span class="sd">    SVMSMOTE : Over-sample using the SVM-SMOTE variant.</span>
+
+<span class="sd">    ADASYN : Over-sample using ADASYN.</span>
+
+<span class="sd">    KMeansSMOTE : Over-sample applying a clustering before to oversample using</span>
+<span class="sd">        SMOTE.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    See the original papers: [1]_ for more details.</span>
+
+<span class="sd">    Supports multi-class resampling. A one-vs.-rest scheme is used as</span>
+<span class="sd">    originally proposed in [1]_.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [1] N. V. Chawla, K. W. Bowyer, L. O.Hall, W. P. Kegelmeyer, &quot;SMOTE:</span>
+<span class="sd">       synthetic minority over-sampling technique,&quot; Journal of artificial</span>
+<span class="sd">       intelligence research, 321-357, 2002.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from collections import Counter</span>
+<span class="sd">    &gt;&gt;&gt; from sklearn.datasets import make_classification</span>
+<span class="sd">    &gt;&gt;&gt; from imblearn.over_sampling import \</span>
+<span class="sd">SMOTE # doctest: +NORMALIZE_WHITESPACE</span>
+<span class="sd">    &gt;&gt;&gt; X, y = make_classification(n_classes=2, class_sep=2,</span>
+<span class="sd">    ... weights=[0.1, 0.9], n_informative=3, n_redundant=1, flip_y=0,</span>
+<span class="sd">    ... n_features=20, n_clusters_per_class=1, n_samples=1000, random_state=10)</span>
+<span class="sd">    &gt;&gt;&gt; print(&#39;Original dataset shape %s&#39; % Counter(y))</span>
+<span class="sd">    Original dataset shape Counter({{1: 900, 0: 100}})</span>
+<span class="sd">    &gt;&gt;&gt; sm = SMOTE(random_state=42)</span>
+<span class="sd">    &gt;&gt;&gt; X_res, y_res = sm.fit_resample(X, y)</span>
+<span class="sd">    &gt;&gt;&gt; print(&#39;Resampled dataset shape %s&#39; % Counter(y_res))</span>
+<span class="sd">    Resampled dataset shape Counter({{0: 900, 1: 900}})</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@_deprecate_positional_args</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">sampling_strategy</span><span class="o">=</span><span class="s2">&quot;auto&quot;</span><span class="p">,</span>
+        <span class="n">random_state</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">k_neighbors</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+        <span class="n">n_jobs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="n">sampling_strategy</span><span class="o">=</span><span class="n">sampling_strategy</span><span class="p">,</span>
+            <span class="n">random_state</span><span class="o">=</span><span class="n">random_state</span><span class="p">,</span>
+            <span class="n">k_neighbors</span><span class="o">=</span><span class="n">k_neighbors</span><span class="p">,</span>
+            <span class="n">n_jobs</span><span class="o">=</span><span class="n">n_jobs</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_fit_resample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_validate_estimator</span><span class="p">()</span>
+
+        <span class="n">X_resampled</span> <span class="o">=</span> <span class="p">[</span><span class="n">X</span><span class="o">.</span><span class="n">copy</span><span class="p">()]</span>
+        <span class="n">y_resampled</span> <span class="o">=</span> <span class="p">[</span><span class="n">y</span><span class="o">.</span><span class="n">copy</span><span class="p">()]</span>
+
+        <span class="k">for</span> <span class="n">class_sample</span><span class="p">,</span> <span class="n">n_samples</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">sampling_strategy_</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">n_samples</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">target_class_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flatnonzero</span><span class="p">(</span><span class="n">y</span> <span class="o">==</span> <span class="n">class_sample</span><span class="p">)</span>
+            <span class="n">X_class</span> <span class="o">=</span> <span class="n">_safe_indexing</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">target_class_indices</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">nn_k_</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_class</span><span class="p">)</span>
+            <span class="n">nns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nn_k_</span><span class="o">.</span><span class="n">kneighbors</span><span class="p">(</span><span class="n">X_class</span><span class="p">,</span> <span class="n">return_distance</span><span class="o">=</span><span class="kc">False</span><span class="p">)[:,</span> <span class="mi">1</span><span class="p">:]</span>
+            <span class="n">X_new</span><span class="p">,</span> <span class="n">y_new</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_make_samples</span><span class="p">(</span>
+                <span class="n">X_class</span><span class="p">,</span> <span class="n">y</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">class_sample</span><span class="p">,</span> <span class="n">X_class</span><span class="p">,</span> <span class="n">nns</span><span class="p">,</span> <span class="n">n_samples</span><span class="p">,</span> <span class="mf">1.0</span>
+            <span class="p">)</span>
+            <span class="n">X_resampled</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">X_new</span><span class="p">)</span>
+            <span class="n">y_resampled</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">y_new</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">sparse</span><span class="o">.</span><span class="n">issparse</span><span class="p">(</span><span class="n">X</span><span class="p">):</span>
+            <span class="n">X_resampled</span> <span class="o">=</span> <span class="n">sparse</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">X_resampled</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="n">X</span><span class="o">.</span><span class="n">format</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">X_resampled</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">X_resampled</span><span class="p">)</span>
+        <span class="n">y_resampled</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span><span class="n">y_resampled</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">X_resampled</span><span class="p">,</span> <span class="n">y_resampled</span>
+
+
+<span class="nd">@Substitution</span><span class="p">(</span>
+    <span class="n">sampling_strategy</span><span class="o">=</span><span class="n">BaseOverSampler</span><span class="o">.</span><span class="n">_sampling_strategy_docstring</span><span class="p">,</span>
+    <span class="n">n_jobs</span><span class="o">=</span><span class="n">_n_jobs_docstring</span><span class="p">,</span>
+    <span class="n">random_state</span><span class="o">=</span><span class="n">_random_state_docstring</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="k">class</span> <span class="nc">SMOTENC</span><span class="p">(</span><span class="n">SMOTE</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Synthetic Minority Over-sampling Technique for Nominal and Continuous.</span>
+
+<span class="sd">    Unlike :class:`SMOTE`, SMOTE-NC for dataset containing numerical and</span>
+<span class="sd">    categorical features. However, it is not designed to work with only</span>
+<span class="sd">    categorical features.</span>
+
+<span class="sd">    Read more in the :ref:`User Guide &lt;smote_adasyn&gt;`.</span>
+
+<span class="sd">    .. versionadded:: 0.4</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    categorical_features : ndarray of shape (n_cat_features,) or (n_features,)</span>
+<span class="sd">        Specified which features are categorical. Can either be:</span>
+
+<span class="sd">        - array of indices specifying the categorical features;</span>
+<span class="sd">        - mask array of shape (n_features, ) and ``bool`` dtype for which</span>
+<span class="sd">          ``True`` indicates the categorical features.</span>
+
+<span class="sd">    {sampling_strategy}</span>
+
+<span class="sd">    {random_state}</span>
+
+<span class="sd">    k_neighbors : int or object, default=5</span>
+<span class="sd">        If ``int``, number of nearest neighbours to used to construct synthetic</span>
+<span class="sd">        samples.  If object, an estimator that inherits from</span>
+<span class="sd">        :class:`~sklearn.neighbors.base.KNeighborsMixin` that will be used to</span>
+<span class="sd">        find the k_neighbors.</span>
+
+<span class="sd">    {n_jobs}</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    SMOTE : Over-sample using SMOTE.</span>
+
+<span class="sd">    SMOTEN : Over-sample using the SMOTE variant specifically for categorical</span>
+<span class="sd">        features only.</span>
+
+<span class="sd">    SVMSMOTE : Over-sample using SVM-SMOTE variant.</span>
+
+<span class="sd">    BorderlineSMOTE : Over-sample using Borderline-SMOTE variant.</span>
+
+<span class="sd">    ADASYN : Over-sample using ADASYN.</span>
+
+<span class="sd">    KMeansSMOTE : Over-sample applying a clustering before to oversample using</span>
+<span class="sd">        SMOTE.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    See the original paper [1]_ for more details.</span>
+
+<span class="sd">    Supports mutli-class resampling. A one-vs.-rest scheme is used as</span>
+<span class="sd">    originally proposed in [1]_.</span>
+
+<span class="sd">    See</span>
+<span class="sd">    :ref:`sphx_glr_auto_examples_over-sampling_plot_comparison_over_sampling.py`,</span>
+<span class="sd">    and :ref:`sphx_glr_auto_examples_over-sampling_plot_illustration_generation_sample.py`.  # noqa</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [1] N. V. Chawla, K. W. Bowyer, L. O.Hall, W. P. Kegelmeyer, &quot;SMOTE:</span>
+<span class="sd">       synthetic minority over-sampling technique,&quot; Journal of artificial</span>
+<span class="sd">       intelligence research, 321-357, 2002.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from collections import Counter</span>
+<span class="sd">    &gt;&gt;&gt; from numpy.random import RandomState</span>
+<span class="sd">    &gt;&gt;&gt; from sklearn.datasets import make_classification</span>
+<span class="sd">    &gt;&gt;&gt; from imblearn.over_sampling import SMOTENC</span>
+<span class="sd">    &gt;&gt;&gt; X, y = make_classification(n_classes=2, class_sep=2,</span>
+<span class="sd">    ... weights=[0.1, 0.9], n_informative=3, n_redundant=1, flip_y=0,</span>
+<span class="sd">    ... n_features=20, n_clusters_per_class=1, n_samples=1000, random_state=10)</span>
+<span class="sd">    &gt;&gt;&gt; print(f&#39;Original dataset shape {{X.shape}}&#39;)</span>
+<span class="sd">    Original dataset shape (1000, 20)</span>
+<span class="sd">    &gt;&gt;&gt; print(f&#39;Original dataset samples per class {{Counter(y)}}&#39;)</span>
+<span class="sd">    Original dataset samples per class Counter({{1: 900, 0: 100}})</span>
+<span class="sd">    &gt;&gt;&gt; # simulate the 2 last columns to be categorical features</span>
+<span class="sd">    &gt;&gt;&gt; X[:, -2:] = RandomState(10).randint(0, 4, size=(1000, 2))</span>
+<span class="sd">    &gt;&gt;&gt; sm = SMOTENC(random_state=42, categorical_features=[18, 19])</span>
+<span class="sd">    &gt;&gt;&gt; X_res, y_res = sm.fit_resample(X, y)</span>
+<span class="sd">    &gt;&gt;&gt; print(f&#39;Resampled dataset samples per class {{Counter(y_res)}}&#39;)</span>
+<span class="sd">    Resampled dataset samples per class Counter({{0: 900, 1: 900}})</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_required_parameters</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;categorical_features&quot;</span><span class="p">]</span>
+
+    <span class="nd">@_deprecate_positional_args</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">categorical_features</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">sampling_strategy</span><span class="o">=</span><span class="s2">&quot;auto&quot;</span><span class="p">,</span>
+        <span class="n">random_state</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">k_neighbors</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+        <span class="n">n_jobs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="n">sampling_strategy</span><span class="o">=</span><span class="n">sampling_strategy</span><span class="p">,</span>
+            <span class="n">random_state</span><span class="o">=</span><span class="n">random_state</span><span class="p">,</span>
+            <span class="n">k_neighbors</span><span class="o">=</span><span class="n">k_neighbors</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">categorical_features</span> <span class="o">=</span> <span class="n">categorical_features</span>
+
+    <span class="k">def</span> <span class="nf">_check_X_y</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Overwrite the checking to let pass some string for categorical</span>
+<span class="sd">        features.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">y</span><span class="p">,</span> <span class="n">binarize_y</span> <span class="o">=</span> <span class="n">check_target_type</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">indicate_one_vs_all</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">X</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validate_data</span><span class="p">(</span>
+            <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">reset</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">accept_sparse</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;csr&quot;</span><span class="p">,</span> <span class="s2">&quot;csc&quot;</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">binarize_y</span>
+
+    <span class="k">def</span> <span class="nf">_validate_estimator</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_validate_estimator</span><span class="p">()</span>
+        <span class="n">categorical_features</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">categorical_features</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">categorical_features</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;bool&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">categorical_features_</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flatnonzero</span><span class="p">(</span><span class="n">categorical_features</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span>
+                <span class="p">[</span><span class="n">cat</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_features_</span><span class="p">)</span> <span class="k">for</span> <span class="n">cat</span> <span class="ow">in</span> <span class="n">categorical_features</span><span class="p">]</span>
+            <span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Some of the categorical indices are out of range. Indices&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot; should be between 0 and </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_features_</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">categorical_features_</span> <span class="o">=</span> <span class="n">categorical_features</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">continuous_features_</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">setdiff1d</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_features_</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">categorical_features_</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">categorical_features_</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_features_in_</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;SMOTE-NC is not designed to work only with categorical &quot;</span>
+                <span class="s2">&quot;features. It requires some numerical features.&quot;</span>
+            <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_fit_resample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_features_</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_validate_estimator</span><span class="p">()</span>
+
+        <span class="c1"># compute the median of the standard deviation of the minority class</span>
+        <span class="n">target_stats</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+        <span class="n">class_minority</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">target_stats</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">target_stats</span><span class="o">.</span><span class="n">get</span><span class="p">)</span>
+
+        <span class="n">X_continuous</span> <span class="o">=</span> <span class="n">X</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">continuous_features_</span><span class="p">]</span>
+        <span class="n">X_continuous</span> <span class="o">=</span> <span class="n">check_array</span><span class="p">(</span><span class="n">X_continuous</span><span class="p">,</span> <span class="n">accept_sparse</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;csr&quot;</span><span class="p">,</span> <span class="s2">&quot;csc&quot;</span><span class="p">])</span>
+        <span class="n">X_minority</span> <span class="o">=</span> <span class="n">_safe_indexing</span><span class="p">(</span><span class="n">X_continuous</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">flatnonzero</span><span class="p">(</span><span class="n">y</span> <span class="o">==</span> <span class="n">class_minority</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">sparse</span><span class="o">.</span><span class="n">issparse</span><span class="p">(</span><span class="n">X</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">X</span><span class="o">.</span><span class="n">format</span> <span class="o">==</span> <span class="s2">&quot;csr&quot;</span><span class="p">:</span>
+                <span class="n">_</span><span class="p">,</span> <span class="n">var</span> <span class="o">=</span> <span class="n">csr_mean_variance_axis0</span><span class="p">(</span><span class="n">X_minority</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">_</span><span class="p">,</span> <span class="n">var</span> <span class="o">=</span> <span class="n">csc_mean_variance_axis0</span><span class="p">(</span><span class="n">X_minority</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">var</span> <span class="o">=</span> <span class="n">X_minority</span><span class="o">.</span><span class="n">var</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">median_std_</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">var</span><span class="p">))</span>
+
+        <span class="n">X_categorical</span> <span class="o">=</span> <span class="n">X</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">categorical_features_</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">X_continuous</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">name</span> <span class="o">!=</span> <span class="s2">&quot;object&quot;</span><span class="p">:</span>
+            <span class="n">dtype_ohe</span> <span class="o">=</span> <span class="n">X_continuous</span><span class="o">.</span><span class="n">dtype</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">dtype_ohe</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ohe_</span> <span class="o">=</span> <span class="n">OneHotEncoder</span><span class="p">(</span><span class="n">sparse</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">handle_unknown</span><span class="o">=</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype_ohe</span><span class="p">)</span>
+
+        <span class="c1"># the input of the OneHotEncoder needs to be dense</span>
+        <span class="n">X_ohe</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ohe_</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span>
+            <span class="n">X_categorical</span><span class="o">.</span><span class="n">toarray</span><span class="p">()</span> <span class="k">if</span> <span class="n">sparse</span><span class="o">.</span><span class="n">issparse</span><span class="p">(</span><span class="n">X_categorical</span><span class="p">)</span> <span class="k">else</span> <span class="n">X_categorical</span>
+        <span class="p">)</span>
+
+        <span class="c1"># we can replace the 1 entries of the categorical features with the</span>
+        <span class="c1"># median of the standard deviation. It will ensure that whenever</span>
+        <span class="c1"># distance is computed between 2 samples, the difference will be equal</span>
+        <span class="c1"># to the median of the standard deviation as in the original paper.</span>
+
+        <span class="c1"># In the edge case where the median of the std is equal to 0, the 1s</span>
+        <span class="c1"># entries will be also nullified. In this case, we store the original</span>
+        <span class="c1"># categorical encoding which will be later used for inversing the OHE</span>
+        <span class="k">if</span> <span class="n">math</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">median_std_</span><span class="p">,</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_X_categorical_minority_encoded</span> <span class="o">=</span> <span class="n">_safe_indexing</span><span class="p">(</span>
+                <span class="n">X_ohe</span><span class="o">.</span><span class="n">toarray</span><span class="p">(),</span> <span class="n">np</span><span class="o">.</span><span class="n">flatnonzero</span><span class="p">(</span><span class="n">y</span> <span class="o">==</span> <span class="n">class_minority</span><span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="n">X_ohe</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">X_ohe</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">X_ohe</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">median_std_</span> <span class="o">/</span> <span class="mi">2</span>
+        <span class="n">X_encoded</span> <span class="o">=</span> <span class="n">sparse</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">X_continuous</span><span class="p">,</span> <span class="n">X_ohe</span><span class="p">),</span> <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;csr&quot;</span><span class="p">)</span>
+
+        <span class="n">X_resampled</span><span class="p">,</span> <span class="n">y_resampled</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_fit_resample</span><span class="p">(</span><span class="n">X_encoded</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+
+        <span class="c1"># reverse the encoding of the categorical features</span>
+        <span class="n">X_res_cat</span> <span class="o">=</span> <span class="n">X_resampled</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">continuous_features_</span><span class="o">.</span><span class="n">size</span> <span class="p">:]</span>
+        <span class="n">X_res_cat</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">X_res_cat</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+        <span class="n">X_res_cat_dec</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ohe_</span><span class="o">.</span><span class="n">inverse_transform</span><span class="p">(</span><span class="n">X_res_cat</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">sparse</span><span class="o">.</span><span class="n">issparse</span><span class="p">(</span><span class="n">X</span><span class="p">):</span>
+            <span class="n">X_resampled</span> <span class="o">=</span> <span class="n">sparse</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span>
+                <span class="p">(</span>
+                    <span class="n">X_resampled</span><span class="p">[:,</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">continuous_features_</span><span class="o">.</span><span class="n">size</span><span class="p">],</span>
+                    <span class="n">X_res_cat_dec</span><span class="p">,</span>
+                <span class="p">),</span>
+                <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;csr&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">X_resampled</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span>
+                <span class="p">(</span>
+                    <span class="n">X_resampled</span><span class="p">[:,</span> <span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">continuous_features_</span><span class="o">.</span><span class="n">size</span><span class="p">]</span><span class="o">.</span><span class="n">toarray</span><span class="p">(),</span>
+                    <span class="n">X_res_cat_dec</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="n">indices_reordered</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">continuous_features_</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">categorical_features_</span><span class="p">))</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">sparse</span><span class="o">.</span><span class="n">issparse</span><span class="p">(</span><span class="n">X_resampled</span><span class="p">):</span>
+            <span class="c1"># the matrix is supposed to be in the CSR format after the stacking</span>
+            <span class="n">col_indices</span> <span class="o">=</span> <span class="n">X_resampled</span><span class="o">.</span><span class="n">indices</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">col_idx</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">indices_reordered</span><span class="p">):</span>
+                <span class="n">mask</span> <span class="o">=</span> <span class="n">X_resampled</span><span class="o">.</span><span class="n">indices</span> <span class="o">==</span> <span class="n">col_idx</span>
+                <span class="n">col_indices</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span> <span class="o">=</span> <span class="n">idx</span>
+            <span class="n">X_resampled</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="n">col_indices</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">X_resampled</span> <span class="o">=</span> <span class="n">X_resampled</span><span class="p">[:,</span> <span class="n">indices_reordered</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">X_resampled</span><span class="p">,</span> <span class="n">y_resampled</span>
+
+    <span class="k">def</span> <span class="nf">_generate_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">nn_data</span><span class="p">,</span> <span class="n">nn_num</span><span class="p">,</span> <span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="p">,</span> <span class="n">steps</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generate a synthetic sample with an additional steps for the</span>
+<span class="sd">        categorical features.</span>
+
+<span class="sd">        Each new sample is generated the same way than in SMOTE. However, the</span>
+<span class="sd">        categorical features are mapped to the most frequent nearest neighbors</span>
+<span class="sd">        of the majority class.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">rng</span> <span class="o">=</span> <span class="n">check_random_state</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">random_state</span><span class="p">)</span>
+        <span class="n">X_new</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_generate_samples</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">nn_data</span><span class="p">,</span> <span class="n">nn_num</span><span class="p">,</span> <span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="p">,</span> <span class="n">steps</span><span class="p">)</span>
+        <span class="c1"># change in sparsity structure more efficient with LIL than CSR</span>
+        <span class="n">X_new</span> <span class="o">=</span> <span class="n">X_new</span><span class="o">.</span><span class="n">tolil</span><span class="p">()</span> <span class="k">if</span> <span class="n">sparse</span><span class="o">.</span><span class="n">issparse</span><span class="p">(</span><span class="n">X_new</span><span class="p">)</span> <span class="k">else</span> <span class="n">X_new</span>
+
+        <span class="c1"># convert to dense array since scipy.sparse doesn&#39;t handle 3D</span>
+        <span class="n">nn_data</span> <span class="o">=</span> <span class="n">nn_data</span><span class="o">.</span><span class="n">toarray</span><span class="p">()</span> <span class="k">if</span> <span class="n">sparse</span><span class="o">.</span><span class="n">issparse</span><span class="p">(</span><span class="n">nn_data</span><span class="p">)</span> <span class="k">else</span> <span class="n">nn_data</span>
+
+        <span class="c1"># In the case that the median std was equal to zeros, we have to</span>
+        <span class="c1"># create non-null entry based on the encoded of OHE</span>
+        <span class="k">if</span> <span class="n">math</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">median_std_</span><span class="p">,</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="n">nn_data</span><span class="p">[</span>
+                <span class="p">:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">continuous_features_</span><span class="o">.</span><span class="n">size</span> <span class="p">:</span>
+            <span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_X_categorical_minority_encoded</span>
+
+        <span class="n">all_neighbors</span> <span class="o">=</span> <span class="n">nn_data</span><span class="p">[</span><span class="n">nn_num</span><span class="p">[</span><span class="n">rows</span><span class="p">]]</span>
+
+        <span class="n">categories_size</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">continuous_features_</span><span class="o">.</span><span class="n">size</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span>
+            <span class="n">cat</span><span class="o">.</span><span class="n">size</span> <span class="k">for</span> <span class="n">cat</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ohe_</span><span class="o">.</span><span class="n">categories_</span>
+        <span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">start_idx</span><span class="p">,</span> <span class="n">end_idx</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">categories_size</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">categories_size</span><span class="p">)[</span><span class="mi">1</span><span class="p">:]</span>
+        <span class="p">):</span>
+            <span class="n">col_maxs</span> <span class="o">=</span> <span class="n">all_neighbors</span><span class="p">[:,</span> <span class="p">:,</span> <span class="n">start_idx</span><span class="p">:</span><span class="n">end_idx</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="c1"># tie breaking argmax</span>
+            <span class="n">is_max</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">col_maxs</span><span class="p">,</span> <span class="n">col_maxs</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+            <span class="n">max_idxs</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">permutation</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">argwhere</span><span class="p">(</span><span class="n">is_max</span><span class="p">))</span>
+            <span class="n">xs</span><span class="p">,</span> <span class="n">idx_sels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">max_idxs</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">return_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">col_sels</span> <span class="o">=</span> <span class="n">max_idxs</span><span class="p">[</span><span class="n">idx_sels</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+
+            <span class="n">ys</span> <span class="o">=</span> <span class="n">start_idx</span> <span class="o">+</span> <span class="n">col_sels</span>
+            <span class="n">X_new</span><span class="p">[:,</span> <span class="n">start_idx</span><span class="p">:</span><span class="n">end_idx</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">X_new</span><span class="p">[</span><span class="n">xs</span><span class="p">,</span> <span class="n">ys</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="k">return</span> <span class="n">X_new</span>
+
+
+<span class="nd">@Substitution</span><span class="p">(</span>
+    <span class="n">sampling_strategy</span><span class="o">=</span><span class="n">BaseOverSampler</span><span class="o">.</span><span class="n">_sampling_strategy_docstring</span><span class="p">,</span>
+    <span class="n">n_jobs</span><span class="o">=</span><span class="n">_n_jobs_docstring</span><span class="p">,</span>
+    <span class="n">random_state</span><span class="o">=</span><span class="n">_random_state_docstring</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="k">class</span> <span class="nc">SMOTEN</span><span class="p">(</span><span class="n">SMOTE</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Synthetic Minority Over-sampling Technique for Nominal.</span>
+
+<span class="sd">    This method is refered as SMOTEN in [1]_. It expects that the data to</span>
+<span class="sd">    resample are only made of categorical features.</span>
+
+<span class="sd">    Read more in the :ref:`User Guide &lt;smote_adasyn&gt;`.</span>
+
+<span class="sd">    .. versionadded:: 0.8</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    {sampling_strategy}</span>
+
+<span class="sd">    {random_state}</span>
+
+<span class="sd">    k_neighbors : int or object, default=5</span>
+<span class="sd">        If ``int``, number of nearest neighbours to used to construct synthetic</span>
+<span class="sd">        samples.  If object, an estimator that inherits from</span>
+<span class="sd">        :class:`~sklearn.neighbors.base.KNeighborsMixin` that will be used to</span>
+<span class="sd">        find the k_neighbors.</span>
+
+<span class="sd">    {n_jobs}</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    SMOTE : Over-sample using SMOTE.</span>
+
+<span class="sd">    SMOTENC : Over-sample using SMOTE for continuous and categorical features.</span>
+
+<span class="sd">    BorderlineSMOTE : Over-sample using the borderline-SMOTE variant.</span>
+
+<span class="sd">    SVMSMOTE : Over-sample using the SVM-SMOTE variant.</span>
+
+<span class="sd">    ADASYN : Over-sample using ADASYN.</span>
+
+<span class="sd">    KMeansSMOTE : Over-sample applying a clustering before to oversample using</span>
+<span class="sd">        SMOTE.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    See the original papers: [1]_ for more details.</span>
+
+<span class="sd">    Supports multi-class resampling. A one-vs.-rest scheme is used as</span>
+<span class="sd">    originally proposed in [1]_.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [1] N. V. Chawla, K. W. Bowyer, L. O.Hall, W. P. Kegelmeyer, &quot;SMOTE:</span>
+<span class="sd">       synthetic minority over-sampling technique,&quot; Journal of artificial</span>
+<span class="sd">       intelligence research, 321-357, 2002.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; X = np.array([&quot;A&quot;] * 10 + [&quot;B&quot;] * 20 + [&quot;C&quot;] * 30, dtype=object).reshape(-1, 1)</span>
+<span class="sd">    &gt;&gt;&gt; y = np.array([0] * 20 + [1] * 40, dtype=np.int32)</span>
+<span class="sd">    &gt;&gt;&gt; from collections import Counter</span>
+<span class="sd">    &gt;&gt;&gt; print(f&quot;Original class counts: {{Counter(y)}}&quot;)</span>
+<span class="sd">    Original class counts: Counter({{1: 40, 0: 20}})</span>
+<span class="sd">    &gt;&gt;&gt; from imblearn.over_sampling import SMOTEN</span>
+<span class="sd">    &gt;&gt;&gt; sampler = SMOTEN(random_state=0)</span>
+<span class="sd">    &gt;&gt;&gt; X_res, y_res = sampler.fit_resample(X, y)</span>
+<span class="sd">    &gt;&gt;&gt; print(f&quot;Class counts after resampling {{Counter(y_res)}}&quot;)</span>
+<span class="sd">    Class counts after resampling Counter({{0: 40, 1: 40}})</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_check_X_y</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Check should accept strings and not sparse matrices.&quot;&quot;&quot;</span>
+        <span class="n">y</span><span class="p">,</span> <span class="n">binarize_y</span> <span class="o">=</span> <span class="n">check_target_type</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">indicate_one_vs_all</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">X</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validate_data</span><span class="p">(</span>
+            <span class="n">X</span><span class="p">,</span>
+            <span class="n">y</span><span class="p">,</span>
+            <span class="n">reset</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">accept_sparse</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">binarize_y</span>
+
+    <span class="k">def</span> <span class="nf">_validate_estimator</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Force to use precomputed distance matrix.&quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_validate_estimator</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nn_k_</span><span class="o">.</span><span class="n">set_params</span><span class="p">(</span><span class="n">metric</span><span class="o">=</span><span class="s2">&quot;precomputed&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_make_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X_class</span><span class="p">,</span> <span class="n">klass</span><span class="p">,</span> <span class="n">y_dtype</span><span class="p">,</span> <span class="n">nn_indices</span><span class="p">,</span> <span class="n">n_samples</span><span class="p">):</span>
+        <span class="n">random_state</span> <span class="o">=</span> <span class="n">check_random_state</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">random_state</span><span class="p">)</span>
+        <span class="c1"># generate sample indices that will be used to generate new samples</span>
+        <span class="n">samples_indices</span> <span class="o">=</span> <span class="n">random_state</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">X_class</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">size</span><span class="o">=</span><span class="n">n_samples</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="kc">True</span>
+        <span class="p">)</span>
+        <span class="c1"># for each drawn samples, select its k-neighbors and generate a sample</span>
+        <span class="c1"># where for each feature individually, each category generated is the</span>
+        <span class="c1"># most common category</span>
+        <span class="n">X_new</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span>
+            <span class="n">stats</span><span class="o">.</span><span class="n">mode</span><span class="p">(</span><span class="n">X_class</span><span class="p">[</span><span class="n">nn_indices</span><span class="p">[</span><span class="n">samples_indices</span><span class="p">]],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">mode</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span>
+        <span class="p">)</span>
+        <span class="n">y_new</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">n_samples</span><span class="p">,</span> <span class="n">fill_value</span><span class="o">=</span><span class="n">klass</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">y_dtype</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">X_new</span><span class="p">,</span> <span class="n">y_new</span>
+
+    <span class="k">def</span> <span class="nf">_fit_resample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_validate_estimator</span><span class="p">()</span>
+
+        <span class="n">X_resampled</span> <span class="o">=</span> <span class="p">[</span><span class="n">X</span><span class="o">.</span><span class="n">copy</span><span class="p">()]</span>
+        <span class="n">y_resampled</span> <span class="o">=</span> <span class="p">[</span><span class="n">y</span><span class="o">.</span><span class="n">copy</span><span class="p">()]</span>
+
+        <span class="n">encoder</span> <span class="o">=</span> <span class="n">OrdinalEncoder</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+        <span class="n">X_encoded</span> <span class="o">=</span> <span class="n">encoder</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+
+        <span class="n">vdm</span> <span class="o">=</span> <span class="n">ValueDifferenceMetric</span><span class="p">(</span>
+            <span class="n">n_categories</span><span class="o">=</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">cat</span><span class="p">)</span> <span class="k">for</span> <span class="n">cat</span> <span class="ow">in</span> <span class="n">encoder</span><span class="o">.</span><span class="n">categories_</span><span class="p">]</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_encoded</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">class_sample</span><span class="p">,</span> <span class="n">n_samples</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">sampling_strategy_</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">n_samples</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">target_class_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flatnonzero</span><span class="p">(</span><span class="n">y</span> <span class="o">==</span> <span class="n">class_sample</span><span class="p">)</span>
+            <span class="n">X_class</span> <span class="o">=</span> <span class="n">_safe_indexing</span><span class="p">(</span><span class="n">X_encoded</span><span class="p">,</span> <span class="n">target_class_indices</span><span class="p">)</span>
+
+            <span class="n">X_class_dist</span> <span class="o">=</span> <span class="n">vdm</span><span class="o">.</span><span class="n">pairwise</span><span class="p">(</span><span class="n">X_class</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">nn_k_</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_class_dist</span><span class="p">)</span>
+            <span class="c1"># the kneigbors search will include the sample itself which is</span>
+            <span class="c1"># expected from the original algorithm</span>
+            <span class="n">nn_indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nn_k_</span><span class="o">.</span><span class="n">kneighbors</span><span class="p">(</span><span class="n">X_class_dist</span><span class="p">,</span> <span class="n">return_distance</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="n">X_new</span><span class="p">,</span> <span class="n">y_new</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_make_samples</span><span class="p">(</span>
+                <span class="n">X_class</span><span class="p">,</span> <span class="n">class_sample</span><span class="p">,</span> <span class="n">y</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">nn_indices</span><span class="p">,</span> <span class="n">n_samples</span>
+            <span class="p">)</span>
+
+            <span class="n">X_new</span> <span class="o">=</span> <span class="n">encoder</span><span class="o">.</span><span class="n">inverse_transform</span><span class="p">(</span><span class="n">X_new</span><span class="p">)</span>
+            <span class="n">X_resampled</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">X_new</span><span class="p">)</span>
+            <span class="n">y_resampled</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">y_new</span><span class="p">)</span>
+
+        <span class="n">X_resampled</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">X_resampled</span><span class="p">)</span>
+        <span class="n">y_resampled</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span><span class="n">y_resampled</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">X_resampled</span><span class="p">,</span> <span class="n">y_resampled</span>
+
+    <span class="k">def</span> <span class="nf">_more_tags</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;X_types&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;2darray&quot;</span><span class="p">,</span> <span class="s2">&quot;dataframe&quot;</span><span class="p">,</span> <span class="s2">&quot;string&quot;</span><span class="p">]}</span>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, Runad_Nagateja_Pritam.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.7</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

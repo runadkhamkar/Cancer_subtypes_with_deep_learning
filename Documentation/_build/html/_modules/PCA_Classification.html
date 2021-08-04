@@ -1,0 +1,617 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>PCA_Classification &#8212; Deep learning based methods for cancersubtype discovery 1 documentation</title>
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for PCA_Classification</h1><div class="highlight"><pre>
+<span></span>
+<span class="c1">############################# IMPORT LIBRARY  #################################</span>
+<span class="n">seed</span><span class="o">=</span><span class="mi">75</span>
+<span class="kn">import</span> <span class="nn">timeit</span>
+<span class="n">start_time</span> <span class="o">=</span> <span class="n">timeit</span><span class="o">.</span><span class="n">default_timer</span><span class="p">()</span>
+<span class="n">seed</span><span class="o">=</span><span class="mi">75</span>
+<span class="kn">import</span> <span class="nn">psutil</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">tensorflow</span> 
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">matplotlib</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">seaborn</span> <span class="k">as</span> <span class="nn">sns</span>
+<span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">interp</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="kn">import</span> <span class="n">cycle</span>
+<span class="kn">from</span> <span class="nn">xgboost</span> <span class="kn">import</span> <span class="n">XGBClassifier</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">Counter</span>
+<span class="kn">from</span> <span class="nn">sklearn.metrics</span> <span class="kn">import</span> <span class="n">average_precision_score</span><span class="p">,</span> <span class="n">precision_recall_curve</span><span class="p">,</span> <span class="n">matthews_corrcoef</span><span class="p">,</span> <span class="n">precision_score</span><span class="p">,</span> <span class="n">recall_score</span><span class="p">,</span> <span class="n">confusion_matrix</span><span class="p">,</span> <span class="n">classification_report</span>
+<span class="kn">from</span> <span class="nn">sklearn.metrics</span> <span class="kn">import</span> <span class="n">f1_score</span><span class="p">,</span> <span class="n">precision_score</span><span class="p">,</span> <span class="n">auc</span><span class="p">,</span> <span class="n">cohen_kappa_score</span><span class="p">,</span> <span class="n">precision_recall_curve</span><span class="p">,</span> <span class="n">log_loss</span><span class="p">,</span> <span class="n">roc_curve</span><span class="p">,</span> <span class="n">roc_auc_score</span><span class="p">,</span> <span class="n">classification_report</span><span class="p">,</span> <span class="n">accuracy_score</span>
+<span class="kn">from</span> <span class="nn">sklearn.model_selection</span> <span class="kn">import</span> <span class="n">GridSearchCV</span><span class="p">,</span> <span class="n">LeaveOneOut</span><span class="p">,</span> <span class="n">cross_val_score</span><span class="p">,</span> <span class="n">cross_val_predict</span><span class="p">,</span> <span class="n">StratifiedKFold</span><span class="p">,</span> <span class="n">StratifiedShuffleSplit</span>
+<span class="c1">#from sklearn.metrics.classification import accuracy_score</span>
+<span class="kn">from</span> <span class="nn">sklearn.discriminant_analysis</span> <span class="kn">import</span> <span class="n">LinearDiscriminantAnalysis</span><span class="p">,</span> <span class="n">QuadraticDiscriminantAnalysis</span>
+<span class="kn">from</span> <span class="nn">sklearn.linear_model</span> <span class="kn">import</span> <span class="n">LogisticRegression</span>
+<span class="kn">from</span> <span class="nn">sklearn.naive_bayes</span> <span class="kn">import</span> <span class="n">GaussianNB</span>
+<span class="kn">from</span> <span class="nn">sklearn</span> <span class="kn">import</span> <span class="n">metrics</span>
+<span class="kn">from</span> <span class="nn">sklearn.ensemble</span> <span class="kn">import</span> <span class="n">RandomTreesEmbedding</span><span class="p">,</span> <span class="n">RandomForestClassifier</span><span class="p">,</span> <span class="n">GradientBoostingClassifier</span><span class="p">,</span> <span class="n">VotingClassifier</span>
+<span class="kn">from</span> <span class="nn">sklearn.tree</span> <span class="kn">import</span> <span class="n">DecisionTreeClassifier</span>
+<span class="kn">from</span> <span class="nn">sklearn.svm</span> <span class="kn">import</span> <span class="n">SVC</span><span class="p">,</span> <span class="n">LinearSVC</span>
+<span class="kn">from</span> <span class="nn">sklearn.neural_network</span> <span class="kn">import</span> <span class="n">MLPClassifier</span><span class="p">,</span> <span class="n">BernoulliRBM</span>
+<span class="kn">from</span> <span class="nn">sklearn</span> <span class="kn">import</span> <span class="n">model_selection</span>
+<span class="kn">from</span> <span class="nn">sklearn.decomposition</span> <span class="kn">import</span> <span class="n">PCA</span><span class="p">,</span> <span class="n">KernelPCA</span><span class="p">,</span> <span class="n">SparsePCA</span><span class="p">,</span> <span class="n">MiniBatchSparsePCA</span><span class="p">,</span> <span class="n">NMF</span><span class="p">,</span> <span class="n">TruncatedSVD</span><span class="p">,</span> <span class="n">FastICA</span><span class="p">,</span> <span class="n">FactorAnalysis</span><span class="p">,</span> <span class="n">LatentDirichletAllocation</span>
+<span class="kn">from</span> <span class="nn">sklearn.neighbors</span> <span class="kn">import</span> <span class="n">KNeighborsClassifier</span>
+<span class="kn">from</span> <span class="nn">sklearn.datasets</span> <span class="kn">import</span> <span class="n">make_classification</span>
+<span class="kn">from</span> <span class="nn">sklearn.multiclass</span> <span class="kn">import</span> <span class="n">OneVsRestClassifier</span><span class="p">,</span> <span class="n">OneVsOneClassifier</span>
+<span class="kn">from</span> <span class="nn">sklearn.preprocessing</span> <span class="kn">import</span>  <span class="n">Normalizer</span><span class="p">,</span> <span class="n">MinMaxScaler</span><span class="p">,</span> <span class="n">StandardScaler</span><span class="p">,</span> <span class="n">RobustScaler</span><span class="p">,</span> <span class="n">LabelEncoder</span><span class="p">,</span> <span class="n">label_binarize</span><span class="p">,</span> <span class="n">QuantileTransformer</span>
+<span class="kn">from</span> <span class="nn">sklearn.manifold</span> <span class="kn">import</span> <span class="n">TSNE</span>
+<span class="kn">from</span> <span class="nn">sklearn.feature_selection</span> <span class="kn">import</span> <span class="n">SelectFromModel</span><span class="p">,</span> <span class="n">SelectKBest</span><span class="p">,</span> <span class="n">chi2</span><span class="p">,</span> <span class="n">RFE</span><span class="p">,</span> <span class="n">RFECV</span>
+<span class="kn">from</span> <span class="nn">sklearn.pipeline</span> <span class="kn">import</span> <span class="n">make_pipeline</span>
+<span class="kn">from</span> <span class="nn">imblearn.over_sampling</span> <span class="kn">import</span> <span class="n">RandomOverSampler</span><span class="p">,</span> <span class="n">ADASYN</span><span class="p">,</span> <span class="n">SMOTE</span> 
+<span class="kn">from</span> <span class="nn">imblearn.combine</span> <span class="kn">import</span> <span class="n">SMOTEENN</span><span class="p">,</span> <span class="n">SMOTETomek</span>
+<span class="kn">from</span> <span class="nn">keras.initializers</span> <span class="kn">import</span> <span class="n">RandomNormal</span>
+<span class="kn">from</span> <span class="nn">keras.wrappers.scikit_learn</span> <span class="kn">import</span> <span class="n">KerasClassifier</span>
+<span class="kn">from</span> <span class="nn">keras.layers</span> <span class="kn">import</span> <span class="n">Input</span><span class="p">,</span> <span class="n">Dense</span>
+<span class="kn">from</span> <span class="nn">keras.models</span> <span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">load_model</span>
+<span class="kn">from</span> <span class="nn">FeatureExtractor</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">fine_tunning</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">getClassifiers</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="n">matplotlib</span><span class="o">.</span><span class="n">use</span><span class="p">(</span><span class="s1">&#39;Agg&#39;</span><span class="p">)</span>
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="n">seed</span><span class="p">)</span>
+
+
+<span class="c1">#######################   LOAD BREAST CANCER DATASET #######################</span>
+
+<span class="n">file_1</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s1">&#39;/home/runad/Desktop/data/subtype_molecular_rna_seq.csv&#39;</span><span class="p">)</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">file_1</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">20439</span><span class="p">,</span><span class="mi">2</span><span class="p">:</span><span class="mi">607</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>  
+<span class="n">X</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">T</span>
+       
+<span class="n">file_2</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s1">&#39;/home/runad/Desktop/data/subtype_molecular_rna_seq_label.csv&#39;</span><span class="p">,</span> <span class="n">low_memory</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="n">label</span><span class="o">=</span> <span class="n">file_2</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">2</span><span class="p">:</span><span class="mi">607</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>   
+<span class="n">y</span><span class="o">=</span><span class="n">label</span><span class="o">.</span><span class="n">T</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Actual dataset shape </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">Counter</span><span class="p">(</span><span class="n">y</span><span class="p">)))</span>
+
+
+<span class="n">count</span><span class="o">=</span><span class="mi">0</span>
+<span class="n">aaecount</span><span class="o">=</span><span class="mi">0</span>
+
+<span class="n">classifiers</span> <span class="o">=</span> <span class="n">getClassifiers</span><span class="p">()</span>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">classifiers = [</span>
+<span class="sd">    KNeighborsClassifier(3),</span>
+<span class="sd">    DecisionTreeClassifier(random_state=seed),</span>
+<span class="sd">    RandomForestClassifier(criterion=&#39;entropy&#39;, n_estimators=100, random_state=seed),</span>
+<span class="sd">    XGBClassifier(learning_rate=0.001,max_depth=4,n_estimators=100, nthread=1, subsample=0.65),</span>
+<span class="sd">    GradientBoostingClassifier(random_state=seed),</span>
+<span class="sd">    GaussianNB(),</span>
+<span class="sd">    LinearDiscriminantAnalysis(),</span>
+<span class="sd">    QuadraticDiscriminantAnalysis(),</span>
+<span class="sd">    SVC(kernel=&#39;rbf&#39;, probability=True, random_state=seed),</span>
+<span class="sd">    LogisticRegression(C=0.1, multi_class= &#39;multinomial&#39;, solver=&#39;sag&#39;, random_state=seed),</span>
+<span class="sd">    MLPClassifier(hidden_layer_sizes=(500), random_state=seed, verbose=True, activation=&#39;tanh&#39;, solver=&#39;adam&#39;, alpha=0.0001, batch_size=&#39;auto&#39;),</span>
+<span class="sd">    VotingClassifier(estimators=[(&#39;MLP&#39;, MLPClassifier(hidden_layer_sizes=(500), random_state=seed, verbose=True, activation=&#39;tanh&#39;, solver=&#39;adam&#39;, alpha=0.0001, batch_size=&#39;auto&#39;)), </span>
+<span class="sd">    (&#39;LDA&#39;, LinearDiscriminantAnalysis()),</span>
+<span class="sd">    (&#39;LR&#39;, LogisticRegression(C=0.1, multi_class= &#39;multinomial&#39;, solver=&#39;sag&#39;, random_state=seed))], voting=&#39;soft&#39;)</span>
+<span class="sd">    ]</span>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="n">log_cols</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;Classifier&quot;</span><span class="p">,</span> <span class="s2">&quot;Accuracy&quot;</span><span class="p">,</span> <span class="s2">&quot;F1-Score&quot;</span><span class="p">,</span> <span class="s2">&quot;Recall&quot;</span><span class="p">,</span> <span class="s2">&quot;Precision&quot;</span><span class="p">,</span> <span class="s2">&quot;AUC&quot;</span><span class="p">,</span> <span class="s2">&quot;MCC&quot;</span><span class="p">,</span> <span class="s2">&quot;Kappa&quot;</span><span class="p">,</span> <span class="s2">&quot;Log-Loss&quot;</span><span class="p">]</span>
+<span class="n">log</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">log_cols</span><span class="p">)</span>
+
+
+
+<div class="viewcode-block" id="zero_mix"><a class="viewcode-back" href="../PCA_Classification.html#PCA_Classification.zero_mix">[docs]</a><span class="k">def</span> <span class="nf">zero_mix</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    </span>
+<span class="sd">     </span>
+<span class="sd">    This function is used to padding,if the dimension is not equal.</span>
+<span class="sd">    After all dimension is equal</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x : (int)</span>
+<span class="sd">        If &#39;x&#39; is replacment variable.</span>
+<span class="sd">    n : (int)</span>
+<span class="sd">        If &#39;n&#39; is noise of data.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    temp : (int)</span>
+<span class="sd">        It is return value of noise . If  less data presnt ,so it has uniformely added zeros in random location.</span>
+<span class="sd">    </span>
+<span class="sd">    </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">temp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="n">noise</span><span class="o">=</span><span class="n">n</span>
+    <span class="k">if</span> <span class="s1">&#39;spilt&#39;</span> <span class="ow">in</span> <span class="n">noise</span><span class="p">:</span>
+        <span class="n">frac</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">noise</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">])</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">temp</span><span class="p">:</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">frac</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">i</span><span class="p">))),</span> <span class="n">replace</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">i</span><span class="p">[</span><span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">temp</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="gaussian_mix"><a class="viewcode-back" href="../PCA_Classification.html#PCA_Classification.gaussian_mix">[docs]</a><span class="k">def</span> <span class="nf">gaussian_mix</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    </span>
+<span class="sd">     </span>
+<span class="sd">    This function is used to normalize. Mainly it creating a random sample from Gaussian distribution than normalize. </span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x : (int)</span>
+<span class="sd">        If &#39;x&#39; is value which you want to normalize.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    TYPE:(int)</span>
+<span class="sd">        It has return the normalize value.</span>
+
+<span class="sd">   </span>
+
+<span class="sd">    </span>
+<span class="sd">    </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">])))</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">n</span><span class="p">)</span></div>
+
+<span class="n">skf</span> <span class="o">=</span> <span class="n">StratifiedKFold</span><span class="p">(</span><span class="n">n_splits</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">shuffle</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="n">seed</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<span class="sd">INBUILT FUNCTION : StratifiedKFold(n_splits=5, shuffle=True, random_state=seed)</span>
+<span class="sd">   </span>
+<span class="sd">Extended description of function</span>
+<span class="sd"> </span>
+<span class="sd">It is provides train/test indices to split data in train/test sets.This cross-validation object is a variation of KFold that returns stratified folds. The folds are made by preserving the percentage of samples for each class.</span>
+<span class="sd">         </span>
+<span class="sd">Parameters</span>
+<span class="sd">----------</span>
+<span class="sd">n_splits : (int)</span>
+<span class="sd">It is number of folds. Must be at least 2.</span>
+
+<span class="sd">random_state : (int)</span>
+<span class="sd">If the random state affects the ordering of the indices.</span>
+
+<span class="sd">            </span>
+<span class="sd">             </span>
+
+<span class="sd">    </span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="n">skf</span><span class="o">.</span><span class="n">get_n_splits</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">skf</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">train_index</span><span class="p">,</span> <span class="n">test_index</span> <span class="ow">in</span> <span class="n">skf</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+       <span class="n">x_train</span><span class="p">,</span> <span class="n">x_test</span> <span class="o">=</span> <span class="n">X</span><span class="p">[</span><span class="n">train_index</span><span class="p">],</span> <span class="n">X</span><span class="p">[</span><span class="n">test_index</span><span class="p">]</span>
+       <span class="n">y_train</span><span class="p">,</span> <span class="n">y_test</span> <span class="o">=</span> <span class="n">y</span><span class="p">[</span><span class="n">train_index</span><span class="p">],</span> <span class="n">y</span><span class="p">[</span><span class="n">test_index</span><span class="p">]</span>
+       
+       
+       <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Dataset shape for Train </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">Counter</span><span class="p">(</span><span class="n">y_train</span><span class="p">)))</span>
+       <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Dataset shape for Test </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">Counter</span><span class="p">(</span><span class="n">y_test</span><span class="p">)))</span>
+       
+           
+       <span class="c1">################################# OVER SAMPLING ###############################</span>
+      
+       <span class="n">sm</span> <span class="o">=</span> <span class="n">SMOTE</span><span class="p">(</span><span class="n">sampling_strategy</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="n">seed</span><span class="p">)</span>
+       <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        </span>
+<span class="sd">          </span>
+<span class="sd">        </span>
+<span class="sd">      INBUILT FUNCTION : SMOTE(sampling_strategy=&#39;auto&#39;, random_state=seed)</span>
+<span class="sd">   </span>
+<span class="sd">      Extended description of function</span>
+<span class="sd"> </span>
+<span class="sd">      SMOTE is one of the most commonly used oversampling methods to solve the imbalance problem.It aims to balance class distribution by randomly increasing minority.</span>
+<span class="sd">         </span>
+<span class="sd">      Parameters</span>
+<span class="sd">      ----------</span>
+<span class="sd">      sampling_strategy : (float)</span>
+<span class="sd">      It has oversample the minority class to have any percent of number. </span>
+<span class="sd">      I have taken sampling_strategy auto , so if any percent is taken.</span>
+<span class="sd">      </span>
+<span class="sd">      random_state : (int)</span>
+<span class="sd">      If the random state affects the ordering of the indices.</span>
+
+<span class="sd">            </span>
+<span class="sd">             </span>
+
+
+<span class="sd">       </span>
+<span class="sd">       </span>
+<span class="sd">       &quot;&quot;&quot;</span>
+       <span class="n">x_train</span><span class="p">,</span> <span class="n">y_train</span> <span class="o">=</span> <span class="n">sm</span><span class="o">.</span><span class="n">fit_resample</span><span class="p">(</span><span class="n">x_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span>
+       <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        </span>
+<span class="sd">       function:fit_resample(x_train, y_train)</span>
+<span class="sd">       The function resample fits a model specified by Learner on a Task and calculates predictions and performance measures for all training and all test sets specified by a either a resampling description.</span>
+<span class="sd">       </span>
+<span class="sd">       x_train:(oject)</span>
+<span class="sd">       It is  data of input training dataset</span>
+<span class="sd">       </span>
+<span class="sd">       y_train:(object)</span>
+<span class="sd">       It is  data of label training dataset.</span>
+<span class="sd">       </span>
+<span class="sd">       &quot;&quot;&quot;</span>
+       
+       <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Resampled dataset shape for Train </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">Counter</span><span class="p">(</span><span class="n">y_train</span><span class="p">)))</span>
+       <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Resampled dataset shape for Test </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">Counter</span><span class="p">(</span><span class="n">y_test</span><span class="p">)))</span>
+       
+       <span class="c1">#############################  FEATURE SCALING/NORMALIZATION ##################</span>
+
+       <span class="n">qt</span> <span class="o">=</span> <span class="n">QuantileTransformer</span><span class="p">(</span><span class="n">n_quantiles</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="n">seed</span><span class="p">)</span>
+       <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">       </span>
+<span class="sd">       </span>
+<span class="sd">            </span>
+<span class="sd">       INBUILT FUNCTION : QuantileTransformer(n_quantiles=10, random_state=seed)</span>
+<span class="sd">   </span>
+<span class="sd">       Extended description of function</span>
+<span class="sd"> </span>
+<span class="sd">       This method transforms the features to follow a uniform or a normal distribution.</span>
+<span class="sd">       For a given feature, this transformation tends to spread out the most frequent values.</span>
+<span class="sd">         </span>
+<span class="sd">       Parameters</span>
+<span class="sd">       ----------</span>
+<span class="sd">       n_quantiles : (int)</span>
+<span class="sd">       The actual number of quantiles used to discretize the cumulative distribution function.</span>
+<span class="sd">       random_state : (int)</span>
+<span class="sd">       It has determines random number generation for subsampling and smothing noise.</span>
+<span class="sd">       </span>
+<span class="sd">       </span>
+<span class="sd">       &quot;&quot;&quot;</span>
+       <span class="n">qt</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">x_train</span><span class="p">)</span>
+       <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">       </span>
+<span class="sd">      </span>
+<span class="sd">       function: fit(x_train)</span>
+<span class="sd">       This function is used to fit the x_train in the QuantileTransformer  model.</span>
+<span class="sd">       </span>
+<span class="sd">       x_train:(float)</span>
+<span class="sd">       The data used to scale along the features axis.</span>
+<span class="sd">       x_train data comes in the after the  fit_resample.</span>
+<span class="sd">       </span>
+<span class="sd">       </span>
+<span class="sd">       &quot;&quot;&quot;</span>
+       <span class="n">x_train</span><span class="o">=</span><span class="n">qt</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">x_train</span><span class="p">)</span>
+       <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">       </span>
+<span class="sd">       function:transform(x_train)</span>
+<span class="sd">       Feature-wise transformation of the data.</span>
+<span class="sd">       </span>
+<span class="sd">       x_train:(object)</span>
+<span class="sd">       This data is used  to scale along the features axis.</span>
+<span class="sd">       After fit the x_train in the QuantileTransformer  model it transform.</span>
+<span class="sd">       </span>
+<span class="sd">        </span>
+<span class="sd">       &quot;&quot;&quot;</span>
+       <span class="n">x_test</span><span class="o">=</span><span class="n">qt</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">x_test</span><span class="p">)</span>
+       <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">       </span>
+<span class="sd">        </span>
+<span class="sd">       function:transform(x_test)</span>
+<span class="sd">       Feature-wise transformation of the data.</span>
+<span class="sd">       </span>
+<span class="sd">       x_train:(object)</span>
+<span class="sd">       This data is used  to scale along the features axis.</span>
+<span class="sd">       After fit the x_test in the QuantileTransformer  model it transform.</span>
+<span class="sd">       </span>
+<span class="sd">       </span>
+<span class="sd">       </span>
+<span class="sd">       &quot;&quot;&quot;</span>
+       
+       <span class="c1">################ VARIOUS AUTOENCODERS ###############</span>
+       <span class="n">pca</span> <span class="o">=</span> <span class="n">PCA</span><span class="p">(</span><span class="n">n_components</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="n">seed</span><span class="p">)</span>
+       <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">       </span>
+<span class="sd">      INBUILT FUNCTION : PCA(n_components=50, random_state=seed)</span>
+<span class="sd">   </span>
+<span class="sd">      Extended description of function</span>
+<span class="sd"> </span>
+<span class="sd">      PCA is a dimensionality-reduction method that is  used to reduce the dimensionality of large data sets, by transforming a large set of variables into a smaller one that still contains most of the information in the large set.</span>
+<span class="sd">         </span>
+<span class="sd">     Parameters</span>
+<span class="sd">      ----------</span>
+<span class="sd">     n_components : (int)</span>
+<span class="sd">     Number of components to keep. </span>
+<span class="sd">     If n_components is not set all components are keep.</span>
+<span class="sd">     It representing the directions of maximum variance in the data. </span>
+<span class="sd">     The components are sorted by explained_variance.</span>
+<span class="sd">     </span>
+<span class="sd">     random_state : (int)</span>
+<span class="sd">     It has determines random number generation for subsampling and smothing noise</span>
+<span class="sd">       </span>
+<span class="sd">       &quot;&quot;&quot;</span>
+       <span class="n">pca</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">x_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span>
+       <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">       </span>
+<span class="sd">       </span>
+<span class="sd">       function: fit(x_train,y_train)</span>
+<span class="sd">       This function is used to fit the x_train in the QuantileTransformer  model.</span>
+<span class="sd">       </span>
+<span class="sd">       x_train:(object)</span>
+<span class="sd">       The data used to scale along the features axis.</span>
+<span class="sd">        x_train data comes in the after the QuantileTransformer </span>
+<span class="sd">       y_train:(object)</span>
+<span class="sd">       It is  data of label training dataset.</span>
+<span class="sd">       </span>
+<span class="sd">       &quot;&quot;&quot;</span>
+       
+       <span class="n">x_train</span> <span class="o">=</span> <span class="n">pca</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">x_train</span><span class="p">)</span>
+       <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">       </span>
+<span class="sd">       function:transform(x_train)</span>
+<span class="sd">       Feature-wise transformation of the data.</span>
+<span class="sd">       </span>
+<span class="sd">       x_train:(object)</span>
+<span class="sd">       This data is used  to scale along the features axis.</span>
+<span class="sd">        After fit the x_train in the QuantileTransformer  model it transform</span>
+<span class="sd">        </span>
+<span class="sd">       &quot;&quot;&quot;</span>
+       <span class="n">x_test</span> <span class="o">=</span> <span class="n">pca</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">x_test</span><span class="p">)</span>
+       <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        </span>
+<span class="sd">       </span>
+<span class="sd">       function:transform(x_train)</span>
+<span class="sd">       Feature-wise transformation of the data.</span>
+<span class="sd">       </span>
+<span class="sd">       x_train:(object)</span>
+<span class="sd">       This data is used  to scale along the features axis.</span>
+<span class="sd">        After fit the x_train in the QuantileTransformer  model it transform</span>
+<span class="sd">        </span>
+<span class="sd">       </span>
+<span class="sd">       &quot;&quot;&quot;</span>
+       <span class="nb">print</span> <span class="p">(</span><span class="s1">&#39;After PCA&#39;</span><span class="p">,</span> <span class="n">x_train</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+       <span class="sd">&#39;&#39;&#39;</span>
+
+
+<span class="sd">       </span>
+<span class="sd">       ##############  AAE  ##############</span>
+<span class="sd">       #aae_model(&#39;./feature_extraction/AAE/&#39;+aaenum+&#39;/&#39;, AdversarialOptimizerSimultaneous(),</span>
+<span class="sd">       #          xtrain=x_train,ytrain=y_train, xtest=x_test, ytest=y_train, encoded_dim=50,img_dim=x_train.shape[1], nb_epoch=100)</span>
+<span class="sd">       path=&#39;./WithFineTunning/encoder&#39;+aaenum+&#39;.h5&#39;</span>
+<span class="sd">       model=getFeatures(path=path,X_train=x_train,y_train=y_train,X_test=x_test,y_test=y_test)</span>
+<span class="sd">       model.save(path)</span>
+<span class="sd">       path1=&#39;./WithFineTunning/encoder&#39;+aaenum+&#39;_tunned.h5&#39;</span>
+<span class="sd">       fine_tune(model_given=path,x_train=x_train,y_train=y_train,x_test=x_test,y_test=y_test,filename=path1)</span>
+<span class="sd">       model = load_model(path1)</span>
+<span class="sd">       x_train = model.predict(x_train)</span>
+<span class="sd">       print(&#39;X_Train Shape after fine_tune :&#39;, x_train.shape)</span>
+<span class="sd">       x_test = model.predict(x_test)</span>
+<span class="sd">       print(&#39;X_Test Shape after fine_tune :&#39;, x_test.shape)</span>
+<span class="sd">       </span>
+<span class="sd">       &#39;&#39;&#39;</span>
+       <span class="c1">########################    CLASSIFICATION    ##########################</span>
+<div class="viewcode-block" id="accuracy_score"><a class="viewcode-back" href="../PCA_Classification.html#PCA_Classification.accuracy_score">[docs]</a>       <span class="k">def</span> <span class="nf">accuracy_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span><span class="n">y_pred</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">         </span>
+<span class="sd">        </span>
+<span class="sd">        This function is used to calculate Accuracy,F1 Score Weighted,Recall Score Weighted,Precision Weighted,AUC Score ,MCC Score,Kappa,Log Loss.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        y_test :(object) </span>
+<span class="sd">        This data has category labels for your test data, these labels will be used to test the accuracy between actual and predicted categories.</span>
+<span class="sd">        y_pred : (object)</span>
+<span class="sd">        This data has category labels for your predict data, these labels will be used to predict the accuracy between actual and predicted categories.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        It doesn&#39;t anything return , It only print the value of  Accuracy,F1 Score Weighted,Recall Score Weighted,Precision Weighted,AUC Score ,MCC Score,Kappa,Log Loss. </span>
+<span class="sd">       </span>
+<span class="sd">        </span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">a</span><span class="o">=</span><span class="mi">0</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">y_pred</span><span class="p">)):</span>
+          <span class="k">if</span><span class="p">(</span><span class="n">y_pred</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">==</span><span class="n">y_test</span><span class="p">[</span><span class="n">i</span><span class="p">]):</span>
+            <span class="n">a</span><span class="o">+=</span><span class="mi">1</span>
+        <span class="k">return</span> <span class="n">a</span><span class="o">*</span><span class="mi">100</span><span class="o">/</span><span class="nb">len</span><span class="p">(</span><span class="n">y_test</span><span class="p">)</span></div>
+       <span class="k">for</span> <span class="n">clf</span> <span class="ow">in</span> <span class="n">classifiers</span><span class="p">:</span>
+           <span class="n">clf</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">x_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span>
+           <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">           </span>
+<span class="sd">           </span>
+<span class="sd">           </span>
+<span class="sd">           </span>
+<span class="sd">         function:fit(x_train, y_train)</span>
+<span class="sd">           This function is used to predict class labels for samples in X.</span>
+<span class="sd">           x_train is come after the PCA transform of  model.</span>
+<span class="sd">           </span>
+<span class="sd">           x_train:(float)</span>
+<span class="sd">           x_train is come after the transform of PCA  model.</span>
+<span class="sd">           </span>
+<span class="sd">           y_train:(object)</span>
+<span class="sd">           It is orignal data of label training dataset.</span>
+<span class="sd">         </span>
+<span class="sd">           </span>
+<span class="sd">           </span>
+<span class="sd">           </span>
+<span class="sd">           &quot;&quot;&quot;</span>
+           <span class="n">name</span> <span class="o">=</span> <span class="n">clf</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
+           <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;=&quot;</span><span class="o">*</span><span class="mi">30</span><span class="p">)</span>
+           <span class="nb">print</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+           <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;****Results****&#39;</span><span class="p">)</span>
+           <span class="n">y_pred</span> <span class="o">=</span> <span class="n">clf</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">x_test</span><span class="p">)</span>
+           <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">           </span>
+<span class="sd">             </span>
+<span class="sd">           function:predict(x_test)</span>
+<span class="sd">           This function is used to predict class labels for samples in X.</span>
+<span class="sd">       </span>
+<span class="sd">           x_test:(object)</span>
+<span class="sd">           It has input sample of testing datasets.</span>
+<span class="sd">           x_test is come after the transform of PCA  model</span>
+<span class="sd">          </span>
+<span class="sd">           </span>
+<span class="sd">           &quot;&quot;&quot;</span>
+           <span class="n">y_pred_proba</span> <span class="o">=</span> <span class="n">clf</span><span class="o">.</span><span class="n">predict_proba</span><span class="p">(</span><span class="n">x_test</span><span class="p">)</span>
+           <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">            </span>
+<span class="sd">           </span>
+<span class="sd">            </span>
+<span class="sd">           function:predict_proba(x_test)</span>
+<span class="sd">           The predicted class probabilities of an input sample are computed as the mean predicted class probabilities of the trees in the forest</span>
+<span class="sd">       </span>
+<span class="sd">           x_test:(object)</span>
+<span class="sd">           It has input sample of testing datasets.</span>
+<span class="sd">           </span>
+<span class="sd">           </span>
+<span class="sd">           &quot;&quot;&quot;</span>
+           <span class="n">y_test_binarize</span> <span class="o">=</span> <span class="n">label_binarize</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">classes</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">])</span>
+           <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">           </span>
+<span class="sd">           Inbuilt Function:label_binarize(y_test, classes=[0,1,2,3])</span>
+<span class="sd">       </span>
+<span class="sd">           This function makes it possible to compute this transformation for a fixed set of class labels known ahead of time.</span>
+<span class="sd">       </span>
+<span class="sd">           y_test:(object)</span>
+<span class="sd">           Sequence of integer labels or multilabel data to encode.</span>
+<span class="sd">       </span>
+<span class="sd">           classes:(object)</span>
+<span class="sd">           Uniquely holds the label for each class.</span>
+<span class="sd">           </span>
+<span class="sd">           &quot;&quot;&quot;</span>
+           
+           <span class="n">acc</span> <span class="o">=</span> <span class="n">accuracy_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">)</span>
+           <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Accuracy: </span><span class="si">{:.4%}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">acc</span><span class="p">))</span>
+           
+           
+           <span class="n">f1</span><span class="o">=</span><span class="n">f1_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">,</span><span class="n">average</span><span class="o">=</span><span class="s1">&#39;weighted&#39;</span><span class="p">)</span>
+           <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;F1 Score Weighted: </span><span class="si">{:.4%}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">f1</span><span class="p">))</span>
+           
+           
+           <span class="n">rs</span><span class="o">=</span><span class="n">recall_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">,</span> <span class="n">average</span><span class="o">=</span><span class="s1">&#39;weighted&#39;</span><span class="p">)</span>
+           <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Recall Score Weighted: </span><span class="si">{:.4%}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">rs</span><span class="p">))</span>
+           
+           
+           <span class="n">ps</span><span class="o">=</span><span class="n">precision_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">,</span> <span class="n">average</span><span class="o">=</span><span class="s1">&#39;weighted&#39;</span><span class="p">)</span>
+           <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Precision Weighted: </span><span class="si">{:.4%}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ps</span><span class="p">))</span>
+           
+           
+           <span class="n">auc</span><span class="o">=</span><span class="n">roc_auc_score</span><span class="p">(</span><span class="n">y_test_binarize</span><span class="p">,</span><span class="n">y_pred_proba</span><span class="p">,</span> <span class="n">average</span><span class="o">=</span><span class="s1">&#39;macro&#39;</span><span class="p">)</span>
+           <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;AUC Score: </span><span class="si">{:.4%}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">auc</span><span class="p">))</span>
+           
+           
+           <span class="n">mcc</span><span class="o">=</span><span class="n">matthews_corrcoef</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">)</span>
+           <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;MCC Score: </span><span class="si">{:.4%}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">mcc</span><span class="p">))</span>
+           
+           
+           <span class="n">kappa</span><span class="o">=</span><span class="n">cohen_kappa_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sample_weight</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+           <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Kappa: </span><span class="si">{:.4%}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">kappa</span><span class="p">))</span>
+           
+           
+           <span class="n">ll</span> <span class="o">=</span> <span class="n">log_loss</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred_proba</span><span class="p">)</span>
+           <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Log Loss: </span><span class="si">{:.4%}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ll</span><span class="p">))</span>
+           
+           <span class="n">log_entry</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">([[</span><span class="n">name</span><span class="p">,</span> <span class="n">acc</span><span class="p">,</span> <span class="n">f1</span><span class="p">,</span> <span class="n">rs</span><span class="p">,</span> <span class="n">ps</span><span class="p">,</span> <span class="n">auc</span><span class="p">,</span> <span class="n">mcc</span><span class="p">,</span> <span class="n">kappa</span><span class="p">,</span> <span class="n">ll</span><span class="p">]],</span> <span class="n">columns</span><span class="o">=</span><span class="n">log_cols</span><span class="p">)</span>
+           <span class="n">log</span> <span class="o">=</span> <span class="n">log</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">log_entry</span><span class="p">)</span>
+       
+       
+       <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;=&quot;</span><span class="o">*</span><span class="mi">30</span><span class="p">)</span>
+       <span class="nb">print</span> <span class="p">(</span><span class="n">log</span><span class="p">)</span>
+       
+             
+<span class="c1">################################################################################</span>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">print(&#39;###########################################&#39;)</span>
+
+<span class="sd">result_temp = pd.DataFrame(log)</span>
+
+<span class="sd">result_final=result_temp.groupby(&#39;Classifier&#39;).mean()</span>
+<span class="sd">result_final.to_csv(&quot;./results/11.5.21/result_withPCA_Extraction.tsv&quot;, sep=&#39;\t&#39;)</span>
+<span class="sd">print (result_final)</span>
+
+<span class="sd">print(&#39;###########################################&#39;)</span>
+<span class="sd">print(&#39;Result Saved Successfully&#39;)</span>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;###############&#39;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Wall Clock Time&#39;</span><span class="p">)</span>
+<span class="n">end_time</span> <span class="o">=</span> <span class="n">timeit</span><span class="o">.</span><span class="n">default_timer</span><span class="p">()</span>
+<span class="nb">print</span> <span class="p">((</span><span class="n">end_time</span> <span class="o">-</span> <span class="n">start_time</span><span class="p">),</span> <span class="s1">&#39;Sec&#39;</span><span class="p">)</span>
+<span class="n">time</span><span class="o">=</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span> <span class="n">start_time</span><span class="p">)</span>
+<span class="n">minutes</span> <span class="o">=</span> <span class="n">time</span> <span class="o">//</span> <span class="mi">60</span>
+<span class="n">time</span> <span class="o">%=</span> <span class="mi">60</span>
+<span class="n">seconds</span> <span class="o">=</span> <span class="n">time</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">minutes</span><span class="p">,</span> <span class="s1">&#39;Minutes&#39;</span><span class="p">,</span> <span class="n">seconds</span><span class="p">,</span><span class="s1">&#39;Seconds&#39;</span><span class="p">)</span>
+
+<span class="c1">########  CPU USAGE #######</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;###############&#39;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;CPU Usage&#39;</span><span class="p">)</span> 
+<span class="nb">print</span><span class="p">(</span><span class="n">psutil</span><span class="o">.</span><span class="n">cpu_percent</span><span class="p">(),</span> <span class="s1">&#39;%&#39;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;THE END&#39;</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, Runad_Nagateja_Pritam.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.7</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
