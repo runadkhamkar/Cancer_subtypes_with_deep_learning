@@ -1,0 +1,270 @@
+.
+├── data
+│   ├── subtype_molecular_rna_seq.csv
+│   ├── subtype_molecular_rna_seq_label.csv
+│   ├── ucec_rna_seq_data.csv
+│   └── ucec_rna_seq_data_label.csv
+├── data_analyse.py
+├── FeatureExtractor.py
+├── figures
+│   ├── Barca
+│   │   ├── Final.png
+│   │   ├── finetunned.png
+│   │   ├── linearSVC.png
+│   │   ├── Main.png
+│   │   ├── PCA.png
+│   │   ├── Recall.png
+│   │   ├── roc_curve.png
+│   │   └── unsupervised.png
+│   ├── ROC_Curve.png
+│   ├── ROC_Curve_ucec.png
+│   ├── saved_figures
+│   │   ├── Y_train_oversampled.png
+│   │   └── Y_train.png
+│   └── UCEC
+│       ├── Final_UCEC.png
+│       ├── Fine_Tunned.png
+│       ├── LinearSVC.png
+│       ├── PCA.png
+│       ├── Recall.png
+│       ├── roc_curve.png
+│       └── Unsupervised.png
+├── Final_barc.png
+├── fine_tunning.py
+├── getClassifiers.py
+├── PCA_Classification.py
+├── results
+│   ├── 11.5.21
+│   │   ├── autoencoder_no_compress.png
+│   │   ├── encoder_no_compress.png
+│   │   ├── pre-training-50epoch.png
+│   │   ├── result_VVE.tsv
+│   │   ├── result_withFinetunning.tsv
+│   │   ├── result_withoutFinetunning.tsv
+│   │   ├── result_withPCA_Extraction.tsv
+│   │   └── result_withSelect_SVC.tsv
+│   ├── 12.5.21
+│   │   ├── autoencoder_no_compress.png
+│   │   ├── encoder_no_compress.png
+│   │   ├── result_VVE_UCEC.tsv
+│   │   ├── result_withFinetunning.tsv
+│   │   ├── result_withoutFinetunning.tsv
+│   │   ├── result_withPCA_Extraction.tsv
+│   │   └── result_withSelect_SVC.tsv
+│   ├── 13.5.21
+│   │   └── result_withFinetunning.tsv
+│   ├── Accuracy_Final_Barc.png
+│   └── result_VVE_UCEC.tsv
+├── roc_curve.py
+├── SelectBest_Classification.py
+├── selectBest.py
+├── Terminal_OP
+│   ├── TerminalOP_bechmarkPCA.txt
+│   ├── TerminalOPFineTunned.txt
+│   ├── TerminalOP_PCA.txt
+│   ├── TerminalOPSelection_SVC.txt
+│   ├── TerminalOP_UCEC_PCA.txt
+│   ├── TerminalOP_UCEC_PreTraining.txt
+│   ├── TerminalOP_UCEC_SVC.txt
+│   ├── TerminalOP_UCEC_withFineTunning.txt
+│   └── TerminalOP_withoutFineTunning.txt
+├── tree.txt
+├── UCEC_final.png
+├── VAE
+│   ├── 1
+│   │   ├── vae_decoder.h5
+│   │   ├── vae_encoder.h5
+│   │   └── vae_training_history.csv
+│   ├── 2
+│   │   ├── vae_decoder.h5
+│   │   ├── vae_encoder.h5
+│   │   └── vae_training_history.csv
+│   ├── 3
+│   │   ├── vae_decoder.h5
+│   │   ├── vae_encoder.h5
+│   │   └── vae_training_history.csv
+│   └── UCEC
+│       ├── 1
+│       │   ├── vae_decoder.h5
+│       │   ├── vae_encoder.h5
+│       │   └── vae_training_history.csv
+│       ├── 2
+│       │   ├── vae_decoder.h5
+│       │   ├── vae_encoder.h5
+│       │   └── vae_training_history.csv
+│       └── 3
+│           ├── vae_decoder.h5
+│           ├── vae_encoder.h5
+│           └── vae_training_history.csv
+├── variational_autoencoder_multilayer.py
+├── Variational_multilayer.py
+├── WithFineTunning
+│   ├── encoder1.h5
+│   ├── encoder1_tunned.h5
+│   ├── encoder2.h5
+│   ├── encoder2_tunned.h5
+│   ├── encoder3.h5
+│   ├── encoder3_tunned.h5
+│   ├── ucec
+│   │   ├── encoder1.h5
+│   │   ├── encoder1_tunned.h5
+│   │   ├── encoder2.h5
+│   │   ├── encoder2_tunned.h5
+│   │   ├── encoder3.h5
+│   │   └── encoder3_tunned.h5
+│   └── Updated
+│       ├── encoder1.h5
+│       ├── encoder1_tunned.h5
+│       ├── encoder2.h5
+│       ├── encoder2_tunned.h5
+│       ├── encoder3.h5
+│       └── encoder3_tunned.h5
+├── WithFineTunning.py
+├── WithoutFineTunning
+│   ├── encoder1.h5
+│   ├── encoder2.h5
+│   ├── encoder3.h5
+│   ├── encoder4.h5
+│   ├── encoder5.h5
+│   └── ucec
+│       ├── encoder1.h5
+│       ├── encoder2.h5
+│       ├── encoder3.h5
+│       ├── encoder4.h5
+│       └── encoder5.h5
+└── WithoutFineTunning.py
+
+23 directories, 111 files
+.
+├── data
+│   ├── subtype_molecular_rna_seq.csv
+│   ├── subtype_molecular_rna_seq_label.csv
+│   ├── ucec_rna_seq_data.csv
+│   └── ucec_rna_seq_data_label.csv
+├── data_analyse.py
+├── FeatureExtractor.py
+├── figures
+│   ├── Barca
+│   │   ├── Final.png
+│   │   ├── finetunned.png
+│   │   ├── linearSVC.png
+│   │   ├── Main.png
+│   │   ├── PCA.png
+│   │   ├── Recall.png
+│   │   ├── roc_curve.png
+│   │   └── unsupervised.png
+│   ├── ROC_Curve.png
+│   ├── ROC_Curve_ucec.png
+│   ├── saved_figures
+│   │   ├── Y_train_oversampled.png
+│   │   └── Y_train.png
+│   └── UCEC
+│       ├── Final_UCEC.png
+│       ├── Fine_Tunned.png
+│       ├── LinearSVC.png
+│       ├── PCA.png
+│       ├── Recall.png
+│       ├── roc_curve.png
+│       └── Unsupervised.png
+├── Final_barc.png
+├── fine_tunning.py
+├── getClassifiers.py
+├── PCA_Classification.py
+├── results
+│   ├── 11.5.21
+│   │   ├── autoencoder_no_compress.png
+│   │   ├── encoder_no_compress.png
+│   │   ├── pre-training-50epoch.png
+│   │   ├── result_VVE.tsv
+│   │   ├── result_withFinetunning.tsv
+│   │   ├── result_withoutFinetunning.tsv
+│   │   ├── result_withPCA_Extraction.tsv
+│   │   └── result_withSelect_SVC.tsv
+│   └── 12.5.21
+│       ├── autoencoder_no_compress.png
+│       ├── encoder_no_compress.png
+│       ├── result_VVE_UCEC.tsv
+│       ├── result_withFinetunning.tsv
+│       ├── result_withoutFinetunning.tsv
+│       ├── result_withPCA_Extraction.tsv
+│       └── result_withSelect_SVC.tsv
+├── roc_curve.py
+├── SelectBest_Classification.py
+├── selectBest.py
+├── Terminal_OP
+│   ├── TerminalOP_bechmarkPCA.txt
+│   ├── TerminalOPFineTunned.txt
+│   ├── TerminalOP_PCA.txt
+│   ├── TerminalOPSelection_SVC.txt
+│   ├── TerminalOP_UCEC_PCA.txt
+│   ├── TerminalOP_UCEC_PreTraining.txt
+│   ├── TerminalOP_UCEC_SVC.txt
+│   ├── TerminalOP_UCEC_withFineTunning.txt
+│   └── TerminalOP_withoutFineTunning.txt
+├── tree.txt
+├── UCEC_final.png
+├── VAE
+│   ├── 1
+│   │   ├── vae_decoder.h5
+│   │   ├── vae_encoder.h5
+│   │   └── vae_training_history.csv
+│   ├── 2
+│   │   ├── vae_decoder.h5
+│   │   ├── vae_encoder.h5
+│   │   └── vae_training_history.csv
+│   ├── 3
+│   │   ├── vae_decoder.h5
+│   │   ├── vae_encoder.h5
+│   │   └── vae_training_history.csv
+│   └── UCEC
+│       ├── 1
+│       │   ├── vae_decoder.h5
+│       │   ├── vae_encoder.h5
+│       │   └── vae_training_history.csv
+│       ├── 2
+│       │   ├── vae_decoder.h5
+│       │   ├── vae_encoder.h5
+│       │   └── vae_training_history.csv
+│       └── 3
+│           ├── vae_decoder.h5
+│           ├── vae_encoder.h5
+│           └── vae_training_history.csv
+├── variational_autoencoder_multilayer.py
+├── Variational_multilayer.py
+├── WithFineTunning
+│   ├── encoder1.h5
+│   ├── encoder1_tunned.h5
+│   ├── encoder2.h5
+│   ├── encoder2_tunned.h5
+│   ├── encoder3.h5
+│   ├── encoder3_tunned.h5
+│   ├── ucec
+│   │   ├── encoder1.h5
+│   │   ├── encoder1_tunned.h5
+│   │   ├── encoder2.h5
+│   │   ├── encoder2_tunned.h5
+│   │   ├── encoder3.h5
+│   │   └── encoder3_tunned.h5
+│   └── Updated
+│       ├── encoder1.h5
+│       ├── encoder1_tunned.h5
+│       ├── encoder2.h5
+│       ├── encoder2_tunned.h5
+│       ├── encoder3.h5
+│       └── encoder3_tunned.h5
+├── WithFineTunning.py
+├── WithoutFineTunning
+│   ├── encoder1.h5
+│   ├── encoder2.h5
+│   ├── encoder3.h5
+│   ├── encoder4.h5
+│   ├── encoder5.h5
+│   └── ucec
+│       ├── encoder1.h5
+│       ├── encoder2.h5
+│       ├── encoder3.h5
+│       ├── encoder4.h5
+│       └── encoder5.h5
+└── WithoutFineTunning.py
+
+22 directories, 108 files
